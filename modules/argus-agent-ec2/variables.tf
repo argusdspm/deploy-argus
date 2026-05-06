@@ -1,188 +1,234 @@
-# Argus Agent EC2 Deployment Module - Variables
-# This module deploys an Argus agent on EC2 for secure customer data scanning
+# Argus Agent EC2 Module — Variables
+#
+# v1.0 interface: customer provides an enrollment_token (from the Argus
+# dashboard); the agent exchanges it on first start for a per-container
+# API key. No pre-issued agent_id / agent_api_key plumbing.
 
-# Required Variables
-variable "argus_provider_account_id" {
-  description = "AWS Account ID of the Argus service provider (for cross-account trust)"
-  type        = string
-  validation {
-    condition     = can(regex("^[0-9]{12}$", var.argus_provider_account_id))
-    error_message = "Provider account ID must be a valid 12-digit AWS Account ID."
-  }
-}
+# -----------------------------------------------------------------------------
+# Required
+# -----------------------------------------------------------------------------
 
 variable "customer_name" {
-  description = "Customer name for resource naming and tagging"
+  description = "Name used for resource naming and tagging (alphanumeric + hyphens)."
   type        = string
   validation {
     condition     = can(regex("^[a-zA-Z0-9-]+$", var.customer_name))
-    error_message = "Customer name must contain only alphanumeric characters and hyphens."
+    error_message = "customer_name must contain only alphanumerics and hyphens."
   }
 }
 
-variable "agent_api_key" {
-  description = "Argus agent API key for backend authentication"
+variable "enrollment_token" {
+  description = "Argus enrollment token for this cloud account. Generate at: dashboard → Cloud Accounts → Generate Enrollment Token. Reusable; rotate via the dashboard if leaked."
   type        = string
   sensitive   = true
   validation {
-    condition     = length(var.agent_api_key) >= 32
-    error_message = "Agent API key must be at least 32 characters long."
+    condition     = length(var.enrollment_token) >= 16
+    error_message = "enrollment_token looks too short — copy the full token from the dashboard."
   }
 }
+
+# -----------------------------------------------------------------------------
+# Argus backend
+# -----------------------------------------------------------------------------
 
 variable "argus_backend_url" {
-  description = "Argus SaaS backend URL for agent communication"
+  description = "Argus control-plane URL the agent connects to."
   type        = string
-  default     = "https://api.argus-dspm.com"
+  default     = "https://api.argusdspm.com"
   validation {
     condition     = can(regex("^https://", var.argus_backend_url))
-    error_message = "Backend URL must use HTTPS."
+    error_message = "argus_backend_url must use HTTPS."
   }
 }
 
-# AWS Configuration
+variable "agent_container_image" {
+  description = "Public OCI image for the Argus agent. Default tracks the rolling stable tag on GitHub Container Registry. Pin to vX.Y.Z if you need a specific release."
+  type        = string
+  default     = "ghcr.io/argusdspm/argus-agent:stable"
+}
+
+variable "agent_log_level" {
+  description = "Agent log level."
+  type        = string
+  default     = "INFO"
+  validation {
+    condition     = contains(["DEBUG", "INFO", "WARNING", "ERROR"], var.agent_log_level)
+    error_message = "agent_log_level must be one of: DEBUG, INFO, WARNING, ERROR."
+  }
+}
+
+# -----------------------------------------------------------------------------
+# AWS region / network
+# -----------------------------------------------------------------------------
+
 variable "aws_region" {
-  description = "AWS region for agent deployment"
+  description = "AWS region for agent deployment."
   type        = string
   default     = "us-east-1"
 }
 
 variable "availability_zone" {
-  description = "Availability zone for EC2 instance (optional, will use first AZ if not specified)"
+  description = "Availability zone for the EC2 instance (optional; first AZ in region used if empty)."
   type        = string
   default     = ""
 }
 
-# Network Configuration
 variable "vpc_id" {
-  description = "VPC ID for agent deployment (optional, will create new VPC if not specified)"
+  description = "VPC ID for agent deployment. If empty, the module creates a new VPC."
   type        = string
   default     = ""
 }
 
 variable "subnet_id" {
-  description = "Subnet ID for agent deployment (optional, will create new subnet if not specified)"
+  description = "Subnet ID for agent deployment. If empty, the module creates one in the (existing or new) VPC."
   type        = string
   default     = ""
 }
 
 variable "allowed_cidr_blocks" {
-  description = "CIDR blocks allowed for SSH access (optional, for debugging only)"
+  description = "CIDR blocks allowed for SSH access (debugging only — empty in production)."
   type        = list(string)
   default     = []
 }
 
-# EC2 Configuration
+# -----------------------------------------------------------------------------
+# EC2 instance
+# -----------------------------------------------------------------------------
+
 variable "instance_type" {
-  description = "EC2 instance type for the agent"
+  description = "EC2 instance type."
   type        = string
   default     = "t3.medium"
   validation {
     condition     = contains(["t3.small", "t3.medium", "t3.large", "t3.xlarge", "c5.large", "c5.xlarge"], var.instance_type)
-    error_message = "Instance type must be one of: t3.small, t3.medium, t3.large, t3.xlarge, c5.large, c5.xlarge."
+    error_message = "instance_type must be one of: t3.small, t3.medium, t3.large, t3.xlarge, c5.large, c5.xlarge."
   }
 }
 
 variable "key_pair_name" {
-  description = "EC2 Key Pair name for SSH access (optional, for debugging only)"
+  description = "EC2 key pair name for SSH (debugging only)."
   type        = string
   default     = ""
 }
 
 variable "root_volume_size" {
-  description = "Root volume size in GB"
+  description = "Root volume size in GB."
   type        = number
   default     = 20
   validation {
     condition     = var.root_volume_size >= 20 && var.root_volume_size <= 100
-    error_message = "Root volume size must be between 20 and 100 GB."
+    error_message = "root_volume_size must be between 20 and 100 GB."
   }
 }
 
-# Agent Configuration
-variable "agent_container_image" {
-  description = "Docker container image for Argus agent"
-  type        = string
-  default     = "000830353599.dkr.ecr.us-east-2.amazonaws.com/argus-agent:latest"
-}
-
-variable "agent_log_level" {
-  description = "Agent logging level"
-  type        = string
-  default     = "INFO"
-  validation {
-    condition     = contains(["DEBUG", "INFO", "WARNING", "ERROR"], var.agent_log_level)
-    error_message = "Log level must be one of: DEBUG, INFO, WARNING, ERROR."
-  }
-}
-
-variable "health_check_interval" {
-  description = "Health check interval in seconds"
-  type        = number
-  default     = 30
-  validation {
-    condition     = var.health_check_interval >= 10 && var.health_check_interval <= 300
-    error_message = "Health check interval must be between 10 and 300 seconds."
-  }
-}
-
-# Security Configuration
 variable "enable_ssh_access" {
-  description = "Enable SSH access for debugging (not recommended for production)"
+  description = "Enable SSH access for debugging (not recommended in production)."
   type        = bool
   default     = false
 }
 
-variable "external_id" {
-  description = "External ID for cross-account role assumption (will be generated if not provided)"
-  type        = string
-  default     = ""
-  sensitive   = true
-}
-
-# Monitoring Configuration
 variable "enable_detailed_monitoring" {
-  description = "Enable detailed CloudWatch monitoring"
+  description = "Enable detailed CloudWatch monitoring on the EC2 instance."
   type        = bool
   default     = true
 }
 
 variable "log_retention_days" {
-  description = "CloudWatch log retention period in days"
+  description = "CloudWatch log retention period in days."
   type        = number
   default     = 30
   validation {
     condition     = contains([1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, 3653], var.log_retention_days)
-    error_message = "Log retention days must be a valid CloudWatch retention period."
+    error_message = "log_retention_days must be a valid CloudWatch retention period."
   }
 }
 
-# Tags
-variable "additional_tags" {
-  description = "Additional tags to apply to all resources"
-  type        = map(string)
-  default     = {}
+variable "environment" {
+  description = "Environment label (dev/staging/prod). Production also disables instance termination."
+  type        = string
+  default     = "prod"
+  validation {
+    condition     = contains(["dev", "staging", "prod"], var.environment)
+    error_message = "environment must be one of: dev, staging, prod."
+  }
 }
 
-# Advanced Configuration
 variable "auto_scaling_enabled" {
-  description = "Enable auto-scaling for high availability (creates Auto Scaling Group)"
+  description = "Enable Auto Scaling Group (creates a launch template + ASG instead of a single instance). Most customers should use the argus-agent-fargate module for elastic scaling instead."
   type        = bool
   default     = false
 }
 
 variable "backup_enabled" {
-  description = "Enable automated backups"
+  description = "Enable automated backups (no-op placeholder; reserved for future)."
   type        = bool
   default     = true
 }
 
-variable "environment" {
-  description = "Environment name (dev, staging, prod)"
+variable "additional_tags" {
+  description = "Additional tags applied to all resources."
+  type        = map(string)
+  default     = {}
+}
+
+# -----------------------------------------------------------------------------
+# Datastore scanning opt-ins
+# -----------------------------------------------------------------------------
+
+variable "enable_all_datastores" {
+  description = "Grant scanning permissions for all supported datastore types. Overrides individual enable_* flags when true."
+  type        = bool
+  default     = false
+}
+
+variable "enable_s3_scanning" {
+  description = "Enable S3 bucket scanning. Grants discovery + read on all S3 buckets in the account."
+  type        = bool
+  default     = false
+}
+
+variable "enable_rds_scanning" {
+  description = "Enable RDS scanning (MySQL / PostgreSQL / MariaDB). Grants discovery + IAM DB Auth."
+  type        = bool
+  default     = false
+}
+
+variable "enable_dynamodb_scanning" {
+  description = "Enable DynamoDB scanning. Grants discovery + read on all tables."
+  type        = bool
+  default     = false
+}
+
+variable "enable_redshift_scanning" {
+  description = "Enable Redshift scanning. Grants discovery + Data API access on all clusters."
+  type        = bool
+  default     = false
+}
+
+variable "db_secrets_arn_pattern" {
+  description = "Secrets Manager ARN pattern for database credentials (e.g. 'arn:aws:secretsmanager:*:*:secret:argus/*'). Empty disables this permission entirely."
   type        = string
-  default     = "prod"
+  default     = ""
+}
+
+variable "enable_database_egress" {
+  description = "Add security-group egress rules for database ports (3306 / 5432 / 5439)."
+  type        = bool
+  default     = false
+}
+
+variable "database_egress_cidr_blocks" {
+  description = "CIDR blocks for database egress. Empty defaults to the VPC CIDR."
+  type        = list(string)
+  default     = []
+}
+
+variable "health_check_interval" {
+  description = "Agent health-check interval in seconds (informational; passed to the agent via env)."
+  type        = number
+  default     = 30
   validation {
-    condition     = contains(["dev", "staging", "prod"], var.environment)
-    error_message = "Environment must be one of: dev, staging, prod."
+    condition     = var.health_check_interval >= 10 && var.health_check_interval <= 300
+    error_message = "health_check_interval must be between 10 and 300 seconds."
   }
 }

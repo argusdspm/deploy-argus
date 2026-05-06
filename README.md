@@ -1,474 +1,106 @@
-# Argus DSPM Agent - Terraform Deployment
+# Argus DSPM — Deployment Modules
 
-Deploy the Argus DSPM agent in your AWS account with complete data sovereignty. Your sensitive data never leaves your environment.
+Customer-facing infrastructure-as-code for deploying the Argus DSPM agent into your own cloud account. Your sensitive data never leaves your environment — only metadata and findings summaries are sent to the Argus control plane.
 
-[![Terraform](https://img.shields.io/badge/Terraform-%E2%89%A5%201.5-7B42BC?logo=terraform)](https://www.terraform.io/)
-[![AWS](https://img.shields.io/badge/AWS-EC2%20%7C%20IAM%20%7C%20S3-FF9900?logo=amazon-aws)](https://aws.amazon.com/)
-[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-
-## What This Deploys
-
-**Production-Ready Agent Infrastructure:**
-- **Secure EC2 Agent**: Containerized agent running in your AWS account
-- **Zero Data Exfiltration**: Only metadata and findings summaries leave your environment  
-- **Same-Account Operation**: No cross-account role assumption needed
-- **Container Security**: ECR-hosted images with automatic updates
-- **Enterprise Monitoring**: CloudWatch logs, metrics, and alerting
-
-## Architecture Overview
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    Customer AWS Account                         │
-│  ┌─────────────────────────────────────────────────────────────┐│
-│  │                      VPC                                    ││
-│  │  ┌─────────────────┐    ┌─────────────────┐                 ││
-│  │  │   EC2 Instance  │    │  CloudWatch     │                 ││
-│  │  │  ┌───────────┐  │    │  Logs & Metrics │                 ││
-│  │  │  │  Argus    │  │    └─────────────────┘                 ││
-│  │  │  │  Agent    │◄─┼─────────────────────────────────┐      ││
-│  │  │  │Container  │  │                                 │      ││
-│  │  │  └───────────┘  │    ┌─────────────────┐          │      ││
-│  │  │                 │    │ Secrets Manager │          │      ││
-│  │  │ ArgusAgentRole  │    │   (API Keys)    │          │      ││
-│  │  └─────────────────┘    └─────────────────┘          │      ││
-│  │           │                                          │      ││
-│  │           ▼                                          │      ││
-│  │  ┌─────────────────┐                                 │      ││
-│  │  │   S3 Buckets    │◄────────────────────────────────┘      ││
-│  │  │   (Read Only)   │                                        ││
-│  │  └─────────────────┘                                        ││
-│  └─────────────────────────────────────────────────────────────┘│
-└─────────────────────────────────────────────────────────────────┘
-                                │
-                          HTTPS │ (Metadata Only)
-                                ▼
-                    ┌─────────────────────────────┐
-                    │     Argus SaaS Backend      │
-                    └─────────────────────────────┘
-```
+This repo contains:
+- **Terraform modules** for AWS EC2, AWS Fargate, and (preview) Azure ACI.
+- **CloudFormation template** for one-click AWS EC2 deploy via CFN Quick-Launch.
+- **Examples** showing minimal usage for each module.
 
 ## Prerequisites
 
-- **AWS CLI** v2.x configured with appropriate credentials
-- **Terraform** >= 1.5.0
-- **Docker** running (for building/testing)
-- **ECR Repository** with Argus agent image
-- **Agent API Key** from Argus backend
+| Cloud | Tools | Auth |
+|---|---|---|
+| AWS (Terraform) | `terraform >= 1.5`, AWS CLI | Standard AWS credentials in your shell |
+| AWS (CloudFormation) | A web browser | AWS console sign-in |
+| Azure (preview) | `terraform >= 1.5`, `az` CLI | `az login` |
 
-## Quick Start
+You will also need an **enrollment token** from the Argus dashboard (Settings → Cloud Accounts → Generate Enrollment Token). Keep it secret — it is reusable and bootstraps any number of agents into the cloud account it was issued for.
 
-### 1. Clone and Configure
+## Modules
 
-```bash
-git clone https://github.com/JacobAlva/deploy-argus.git
-cd deploy-argus/examples/basic-deployment
+| Path | Topology | Status |
+|---|---|---|
+| `modules/argus-agent-ec2` | Single EC2 instance, agent in Docker under systemd | Stable |
+| `modules/argus-agent-fargate` | ECS Fargate service (baseline + autoscaled burst) | Stable |
+| `modules/argus-agent-azure-aci` | Azure Container Instances | **Preview** — module works but no UI integration in v1.0; expect minor breaking changes |
 
-# Copy and configure terraform.tfvars
-cp terraform.tfvars.example terraform.tfvars
-```
+All modules pull the agent image from the public registry `ghcr.io/argusdspm/argus-agent:stable`. No AWS ECR authentication required.
 
-### 2. Update Configuration
-
-Edit `terraform.tfvars`:
+## Terraform — copy-paste
 
 ```hcl
-# Required
-customer_name = "acme-corp"
-agent_api_key = "argus_sk_xxx_your-secure-api-key-here"
+module "argus" {
+  source            = "github.com/argusdspm/deploy-argus//modules/argus-agent-fargate?ref=v1.0"
+  customer_name     = "production"
+  enrollment_token  = var.enrollment_token
+  argus_backend_url = "https://api.argusdspm.com"
+  vpc_id            = "vpc-xxxxxxxx"
+  subnet_ids        = ["subnet-aaaa", "subnet-bbbb"]
 
-# ECR Configuration (Update with your ECR URI)
-agent_container_image = "AWS_ACCOUNT.dkr.ecr.AWS_REGION.amazonaws.com/argus-agent:latest"
+  enable_s3_scanning = true
+}
 
-# Backend URL
-argus_backend_url = "https://your-backend-url"
-
-# Argus Provider Account (for ECR access)
-argus_provider_account_id = "AWS_ACCOUNT"
-
-# Optional
-aws_region    = "us-east-2"
-instance_type = "t3.medium"
-environment   = "prod"
+variable "enrollment_token" {
+  type      = string
+  sensitive = true
+}
 ```
-
-### 3. Deploy
 
 ```bash
 terraform init
-terraform plan
-terraform apply
+terraform apply -var enrollment_token="<your-enrollment-token>"
 ```
 
-### 4. Verify Deployment
+For the EC2 module, replace `argus-agent-fargate` with `argus-agent-ec2` and follow `examples/ec2-basic`.
 
-```bash
-# Check instance status
-terraform output
+## CloudFormation — one-click EC2
 
-# Verify agent connectivity
-aws logs describe-log-groups --log-group-name-prefix "/argus/agent"
-
-# Check agent container
-aws ssm start-session --target $(terraform output -raw agent_instance_id)
-# Then: docker logs argus-agent
-```
-
-## Module Structure
+Open this URL in a browser logged into the target AWS account:
 
 ```
-deploy-argus/
-├── modules/
-│   └── argus-agent-ec2/           # Production-ready EC2 module
-│       ├── main.tf                # Core infrastructure & networking
-│       ├── variables.tf           # All configuration options
-│       ├── outputs.tf             # Deployment information
-│       ├── security.tf            # IAM roles & security groups
-│       ├── compute.tf             # EC2 instances & auto-scaling
-│       └── user_data.sh           # Agent bootstrap script
-└── examples/
-    └── basic-deployment/          # Simple deployment example
-        ├── main.tf
-        ├── terraform.tfvars.example
-        └── README.md
+https://console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/quickcreate?templateURL=https%3A%2F%2Fargusdspm.com%2Fdownloads%2Fcfn%2Fargus-managed-v1.yml&stackName=argus-agent&param_Region=us-east-1
 ```
 
-## Configuration Reference
+The console form will pre-fill stack name and region. **Paste your enrollment token into the `EnrollmentToken` field manually** — it is deliberately not included in the URL to keep the secret out of browser history. Click **Create stack**.
 
-### Required Variables
+You can also download `cloudformation/argus-agent-ec2.yml` from this repo and upload it directly via the CloudFormation console.
 
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `customer_name` | Unique customer identifier | `"acme-corp"` |
-| `agent_api_key` | Agent authentication key | `"argus_sk_xxx..."` |
-| `argus_provider_account_id` | Argus AWS account ID for ECR access | `"123456789"` |
+## What gets deployed
 
-### Key Optional Variables
+- **EC2 / Fargate**: agent container running with a least-privilege task role (S3 read, RDS describe, etc. — only the datastore types you opt in to). The enrollment token sits encrypted in SSM Parameter Store; the agent reads it once at boot and exchanges it for a per-container API key via `/api/v1/agents/bootstrap`.
+- **Networking**: outbound HTTPS to `api.argusdspm.com` only. No inbound ports.
+- **Secrets**: only the enrollment token is provisioned by Terraform. The post-exchange per-container API key lives inside the running container and is not persisted by the IaC.
 
-| Variable | Description | Default | Options |
-|----------|-------------|---------|---------|
-| `argus_backend_url` | Backend API URL | `"https://api.argus-dspm.com"` | Your backend URL |
-| `agent_container_image` | ECR image URI | `"YOUR_ECR_URI_HERE"` | Full ECR image path |
-| `aws_region` | Deployment region | `"us-east-1"` | Any AWS region |
-| `instance_type` | EC2 instance size | `"t3.medium"` | `t3.small` to `c5.xlarge` |
-| `enable_ssh_access` | SSH debugging access | `false` | `true/false` |
-| `environment` | Environment tag | `"prod"` | `dev/staging/prod` |
-
-## Security Implementation
-
-### Data Sovereignty
-- **Same-Account Operation**: No cross-account role assumption
-- **Instance Credentials**: Uses EC2 instance role for S3 access
-- **Local Processing**: All sensitive data analysis stays in customer VPC
-- **Metadata Only**: Only aggregated findings sent to backend
-
-
-### Security Implementation
-
-```
-Customer AWS Account
-├── EC2 Instance (Agent)
-│   ├── ArgusAgentRole (Instance Role)
-│   │   ├── S3 Read Access
-│   │   ├── ECR Pull Access  
-│   │   ├── Secrets Manager Read
-│   │   ├── CloudWatch Logs Write
-│   │   └── EC2 Metadata Access
-│   └── Docker Container (argus-agent:latest)
-│       ├── Same-account credential detection
-│       ├── Instance credential usage
-│       └── S3 scanning with local processing
-├── Secrets Manager (API Key Storage)
-├── CloudWatch Logs (Agent Monitoring)
-└── S3 Buckets (Scanned Resources)
-```
-
-### Network Security
-- **VPC Isolation**: Private subnets with controlled egress
-- **Security Groups**: HTTPS/SSH only (SSH optional)
-- **EC2 Instance Connect**: Secure SSH access when enabled
-- **No Inbound**: Agent initiates all connections
-
-### Container Security
-- **ECR Images**: Signed container images from private registry
-- **Auto-restart**: Container health checks with automatic recovery
-- **Resource Limits**: CPU/memory constraints for stability
-- **Log Management**: Structured logging with retention policies
-
-## Outputs
-
-After deployment, you'll get these important outputs:
-
-| Output | Description | Usage |
-|--------|-------------|-------|
-| `agent_instance_id` | EC2 instance ID | SSH access and monitoring |
-| `agent_role_arn` | IAM role ARN | Backend account linking |
-| `external_id` | Security external ID | Backend authentication |
-| `agent_id` | Unique agent identifier | Backend registration |
-| `cloudwatch_log_group_name` | Log group name | Log monitoring and debugging |
-
-## Post-Deployment Verification
-
-### 1. Confirm Docker Image
-sudo systemctl status argus-agent
-docker ps
-journalctl -u argus-agent -f
-docker-compose logs argus-agent -f
-
-### 2. Check Agent Health
-
-```bash
-# Verify instance is running
-INSTANCE_ID=$(terraform output -raw agent_instance_id)
-aws ec2 describe-instance-status --instance-ids $INSTANCE_ID
-
-# Check container status via SSH
-aws ssm start-session --target $INSTANCE_ID
-# On instance: docker ps && docker logs argus-agent
-```
-
-### 3. Verify Backend Connectivity
-
-```bash
-# Check agent logs for successful backend communication
-LOG_GROUP=$(terraform output -raw cloudwatch_log_group_name)
-aws logs get-log-events \
-  --log-group-name $LOG_GROUP \
-  --log-stream-name application \
-  --start-from-head
-```
-
-### 4. Test S3 Access
-
-The agent should automatically detect it's running in the same account as the target S3 buckets and use instance credentials directly (no role assumption).
-
-### 4. Register with Backend
-
-Use the outputs to register the agent in your Argus backend:
-- Agent ID: `terraform output -raw agent_id`
-- Role ARN: `terraform output -raw agent_role_arn`  
-- External ID: `terraform output -raw external_id`
-
-
-## Monitoring & Observability
-
-### CloudWatch Integration
-```bash
-# Log Groups Created:
-/argus/agent/{agent-id}/bootstrap    # Instance startup logs
-/argus/agent/{agent-id}/application  # Agent application logs  
-/argus/agent/{agent-id}/error        # Error and exception logs
-```
-
-### Key Metrics
-- **Agent Health**: Container status and restarts
-- **Job Processing**: Scan completion rates and timing
-- **Resource Usage**: CPU, memory, disk utilization
-- **API Connectivity**: Backend communication health
-
-### Real-time Monitoring
-
-```bash
-# Monitor agent logs in real-time
-aws logs tail $(terraform output -raw cloudwatch_log_group_name) --follow
-
-# Check container health
-aws ssm start-session --target $(terraform output -raw agent_instance_id)
-# Then: docker logs -f argus-agent
-```
-
-### Log Analysis Queries
-
-Use CloudWatch Insights:
-
-```sql
-# Find errors in the last hour
-fields @timestamp, @message
-| filter @message like /ERROR/
-| sort @timestamp desc
-| limit 50
-
-# Monitor job processing
-fields @timestamp, @message
-| filter @message like /Processing job/
-| sort @timestamp desc
-```
-
-### Health Monitoring
-```bash
-# Check agent status
-curl http://localhost:8080/health  # From instance
-
-# View real-time logs
-aws logs tail /argus/agent/your-agent-id/application --follow
-
-# Monitor job processing
-docker logs -f argus-agent
-```
-
-## Operational Procedures
-
-### Agent Updates
-```bash
-# Update container image
-cd terraform/examples/basic-deployment
-terraform apply -var="agent_container_image=new-ecr-uri:latest"
-```
-
-### Scaling and Performance
-- **Single Instance**: Suitable for most workloads
-- **Auto-scaling**: Available for high-availability setups
-- **Instance Sizing**: Adjust based on data volume
-
-### Backup and Recovery
-- **Infrastructure as Code**: Complete deployment reproducible
-- **State Management**: Terraform state in S3 backend (recommended)
-- **Configuration**: All settings version controlled
+The agent never accepts inbound connections from the Argus control plane. All data flow is agent-initiated outbound.
 
 ## Troubleshooting
 
-### Common Issues
+| Symptom | Cause | Fix |
+|---|---|---|
+| `terraform init` fails fetching the module | Network can't reach `github.com` | Mirror the module to your internal git or download a release tarball |
+| Agent container restart-loops with `401 Unauthorized` | Enrollment token expired or rotated | Generate a new token in the Argus dashboard, redeploy |
+| Agent logs show `cross-account mismatch` | Agent is running in an AWS account that doesn't match the cloud account it was enrolled for | Confirm the AWS account ID in the agent's IAM role matches the cloud account in the Argus dashboard |
+| Cloud account never flips to "Connected" in dashboard | Agent can't reach `api.argusdspm.com` | Check NAT gateway / VPC endpoints / security group egress rules |
 
-#### 1. ECR Access Denied
-```bash
-# Check ECR repository policy allows customer account
-aws ecr describe-repository --repository-name argus-agent
-aws ecr get-repository-policy --repository-name argus-agent
-```
+Detailed logs live at `/aws/ec2/argus-agent/*` (CloudWatch) for EC2 and `/ecs/argus-agent-baseline` / `/ecs/argus-agent-burst` for Fargate.
 
-#### 2. Agent Container Not Starting
-```bash
-# Check bootstrap logs
-aws logs get-log-events \
-  --log-group-name "/argus/agent/your-agent-id" \
-  --log-stream-name "bootstrap"
+## Versioning
 
-# SSH to instance (if enabled)
-aws ssm start-session --target i-1234567890abcdef
-docker logs argus-agent
-```
+Every release is tagged. Pin the tag in your `source = "...?ref=vX.Y"` to avoid breaking changes mid-flight.
 
-#### 3. Backend Connectivity Issues
-```bash
-# Test backend connectivity from instance
-aws ssm start-session --target $(terraform output -raw agent_instance_id)
+| Tag | Argus agent image | Notes |
+|---|---|---|
+| `v1.0` | `ghcr.io/argusdspm/argus-agent:stable` | Initial public release |
 
-# If on instance
-curl -v https://your-backend-url/health
-
-# Check security group rules
-aws ec2 describe-security-groups --group-ids $(terraform output -raw security_group_id)
-```
-
-#### 4. Permission Errors
-```bash
-# Verify IAM role permissions
-aws iam get-role --role-name ArgusAgentRole
-aws iam list-attached-role-policies --role-name ArgusAgentRole
-
-# Test S3 access from instance
-aws ssm start-session --target $(terraform output -raw agent_instance_id)
-# On instance: aws s3 ls
-```
-
-### Debugging Workflow
-
-1. **Check Terraform Outputs**
-   ```bash
-   terraform output
-   terraform show
-   ```
-
-2. **Verify Instance Status**
-   ```bash
-   aws ec2 describe-instances --instance-ids $(terraform output -raw agent_instance_id)
-   ```
-
-3. **Check Container Health**
-   ```bash
-   # SSH to instance
-   aws ssm start-session --target $(terraform output -raw agent_instance_id)
-   
-   # Check container
-   docker ps -a
-   docker logs argus-agent
-   ```
-
-4. **Monitor Logs**
-   ```bash
-   aws logs tail /argus/agent/$(terraform output -raw agent_id)/application --follow
-   ```
-
-## Updates and Maintenance
-
-### Agent Container Updates
-
-```bash
-# Update to new container version
-terraform apply -var="agent_container_image=new-ecr-uri:v2.0.0"
-```
-
-### Infrastructure Updates
-
-```bash
-# Update Terraform module
-terraform init -upgrade
-terraform plan
-terraform apply
-```
-
-### Configuration Changes
-
-Edit `terraform.tfvars` and run:
-```bash
-terraform plan
-terraform apply
-```
-
-## Cleanup
-
-To remove all resources:
-
-```bash
-terraform destroy
-```
-
-**Warning**: This permanently deletes all resources including logs and monitoring data.
-
-## Production Deployment Checklist
-
-### Pre-Deployment
-- [ ] ECR repository created and accessible
-- [ ] Agent container image built and pushed
-- [ ] Backend API URL configured
-- [ ] Customer API key generated
-- [ ] AWS permissions validated
-
-### Deployment
-- [ ] Terraform variables configured
-- [ ] Infrastructure deployed successfully
-- [ ] Agent container started and healthy
-- [ ] Backend connectivity verified
-- [ ] S3 bucket access confirmed
-
-### Post-Deployment
-- [ ] First scan job executed successfully
-- [ ] CloudWatch logs flowing correctly
-- [ ] Monitoring alerts configured
-- [ ] Access controls reviewed
-- [ ] Documentation updated
+See `CHANGELOG.md` for what changed in each release and `COMPATIBILITY.md` for the deploy-argus ↔ argus version matrix.
 
 ## Support
 
-### Getting Help
-- **Validation**: Check CloudWatch logs for detailed diagnostics
-- **Connectivity**: Verify security groups and network configuration
-- **Permissions**: Review IAM roles and policies
+- Issues: https://github.com/argusdspm/deploy-argus/issues
+- Docs: https://docs.argusdspm.com
+- Status: https://status.argusdspm.com
 
-### Emergency Procedures
-1. **Agent Failure**: Instance will auto-restart, check logs for root cause
-2. **Job processing failures**: Check S3 permissions and backend connectivity
-3. **Security Incident**: Immediately terminate instance via AWS Console
-4. **Complete Outage**: Re-run terraform apply to restore infrastructure
+## License
 
----
+MIT — see `LICENSE`.

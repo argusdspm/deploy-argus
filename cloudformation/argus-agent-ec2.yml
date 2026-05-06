@@ -1,0 +1,278 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Argus DSPM agent — single-EC2 deployment using the public Docker image
+  on GitHub Container Registry. The agent reads its enrollment token
+  from SSM Parameter Store at boot and exchanges it for a per-container
+  API key via /api/v1/agents/bootstrap. All data flow is outbound — no
+  inbound from the Argus control plane.
+
+Parameters:
+  EnrollmentToken:
+    Type: String
+    Description: "Argus enrollment token (from dashboard → Cloud Accounts → Generate Enrollment Token). Reusable; rotate via the dashboard if leaked."
+    NoEcho: true
+    MinLength: 16
+  VpcId:
+    Type: "AWS::EC2::VPC::Id"
+    Description: "VPC where the agent runs."
+  SubnetId:
+    Type: "AWS::EC2::Subnet::Id"
+    Description: "Subnet (inside the chosen VPC) for the agent EC2 instance. Must have outbound HTTPS reachability to the public internet (NAT gateway or public subnet)."
+  ArgusBackendUrl:
+    Type: String
+    Description: "Argus control-plane URL. Leave at default unless instructed otherwise."
+    Default: "https://api.argusdspm.com"
+    AllowedPattern: "^https://.+"
+    ConstraintDescription: "must start with https://."
+  AgentImage:
+    Type: String
+    Description: "Public agent OCI image. Default tracks the rolling stable tag on GitHub Container Registry — anonymous pulls, no AWS ECR auth required."
+    Default: "ghcr.io/argusdspm/argus-agent:stable"
+  InstanceType:
+    Type: String
+    Description: "EC2 instance type."
+    Default: "t3.medium"
+    AllowedValues:
+      - "t3.small"
+      - "t3.medium"
+      - "t3.large"
+      - "t3.xlarge"
+  KeyName:
+    Type: "AWS::EC2::KeyPair::KeyName"
+    Description: "(Optional) EC2 key pair for SSH debugging. Recommended for production for break-glass access."
+
+Resources:
+  # ---------------------------------------------------------------------------
+  # Enrollment-token storage. Read once at boot by user_data; agent
+  # exchanges it via POST /api/v1/agents/bootstrap.
+  # ---------------------------------------------------------------------------
+  # CloudFormation's AWS::SSM::Parameter resource does not support the
+  # SecureString type (only String / StringList). The parameter is stored
+  # as String; access is controlled by the agent's IAM role + the
+  # SSM service's transport encryption. Token is short-lived in SSM in
+  # the sense that the agent reads it at boot — rotate via the Argus
+  # dashboard if you suspect leakage.
+  EnrollmentTokenParam:
+    Type: "AWS::SSM::Parameter"
+    Properties:
+      Name:
+        "Fn::Sub": "/argus-agent/${AWS::StackName}/enrollment-token"
+      Type: "String"
+      Value:
+        Ref: "EnrollmentToken"
+      Description: "Argus enrollment token. Exchanged for a per-container API key."
+
+  # ---------------------------------------------------------------------------
+  # IAM: bootstrap (SSM read) + datastore scanning (S3 / RDS / DynamoDB /
+  # Redshift / CloudWatch logs / EC2 metadata). All read-only.
+  # ---------------------------------------------------------------------------
+  AgentInstanceRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: "ec2.amazonaws.com"
+            Action: "sts:AssumeRole"
+      Policies:
+        - PolicyName: "argus-agent-bootstrap"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action: "ssm:GetParameter"
+                Resource:
+                  "Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/argus-agent/${AWS::StackName}/*"
+        - PolicyName: "argus-agent-cloudwatch-logs"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "logs:CreateLogStream"
+                  - "logs:CreateLogGroup"
+                  - "logs:PutLogEvents"
+                Resource:
+                  "Fn::Sub": "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/argus-agent/*"
+              - Effect: "Allow"
+                Action: "cloudwatch:PutMetricData"
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    "cloudwatch:namespace": "ArgusDSPM/Agent"
+        - PolicyName: "argus-agent-s3-scan"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "s3:ListAllMyBuckets"
+                  - "s3:GetBucketLocation"
+                  - "s3:GetBucketTagging"
+                  - "s3:GetBucketVersioning"
+                Resource: "arn:aws:s3:::*"
+              - Effect: "Allow"
+                Action: "s3:ListBucket"
+                Resource: "arn:aws:s3:::*"
+              - Effect: "Allow"
+                Action:
+                  - "s3:GetObject"
+                  - "s3:GetObjectVersion"
+                  - "s3:GetObjectTagging"
+                Resource: "arn:aws:s3:::*/*"
+        - PolicyName: "argus-agent-rds-scan"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "rds:DescribeDBInstances"
+                  - "rds:DescribeDBClusters"
+                  - "rds:ListTagsForResource"
+                Resource: "*"
+        - PolicyName: "argus-agent-dynamodb-scan"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "dynamodb:ListTables"
+                  - "dynamodb:DescribeTable"
+                  - "dynamodb:ListTagsOfResource"
+                  - "dynamodb:Scan"
+                  - "dynamodb:Query"
+                  - "dynamodb:GetItem"
+                  - "dynamodb:BatchGetItem"
+                Resource: "*"
+        - PolicyName: "argus-agent-ec2-metadata"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "ec2:DescribeInstances"
+                  - "ec2:DescribeInstanceAttribute"
+                  - "ec2:DescribeRegions"
+                  - "ec2:DescribeAvailabilityZones"
+                Resource: "*"
+
+  AgentInstanceProfile:
+    Type: "AWS::IAM::InstanceProfile"
+    Properties:
+      Roles:
+        - Ref: "AgentInstanceRole"
+
+  AgentSecurityGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      VpcId:
+        Ref: "VpcId"
+      GroupDescription: "Argus DSPM agent - outbound HTTPS only."
+      SecurityGroupEgress:
+        - IpProtocol: "tcp"
+          FromPort: 443
+          ToPort: 443
+          CidrIp: "0.0.0.0/0"
+          Description: "HTTPS to Argus control plane and AWS APIs."
+
+  AgentLogGroup:
+    Type: "AWS::Logs::LogGroup"
+    Properties:
+      LogGroupName:
+        "Fn::Sub": "/argus-agent/${AWS::StackName}"
+      RetentionInDays: 30
+
+  # ---------------------------------------------------------------------------
+  # EC2 instance — Amazon Linux 2 via SSM lookup (works in every region
+  # without an explicit AmiByRegion mapping).
+  # ---------------------------------------------------------------------------
+  AgentInstance:
+    Type: "AWS::EC2::Instance"
+    Properties:
+      ImageId: "{{resolve:ssm:/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2}}"
+      InstanceType:
+        Ref: "InstanceType"
+      SubnetId:
+        Ref: "SubnetId"
+      IamInstanceProfile:
+        Ref: "AgentInstanceProfile"
+      KeyName:
+        Ref: "KeyName"
+      SecurityGroupIds:
+        - Ref: "AgentSecurityGroup"
+      MetadataOptions:
+        HttpTokens: "required"
+        HttpPutResponseHopLimit: 2
+      Tags:
+        - Key: "Name"
+          Value:
+            "Fn::Sub": "argus-agent-${AWS::StackName}"
+        - Key: "argus:component"
+          Value: "agent"
+      UserData:
+        "Fn::Base64":
+          "Fn::Sub": |
+            #!/usr/bin/env bash
+            set -euo pipefail
+
+            dnf install -y docker || amazon-linux-extras install -y docker
+            systemctl enable --now docker
+
+            ENROLLMENT_TOKEN="$(aws ssm get-parameter \
+              --name "${EnrollmentTokenParam}" \
+              --with-decryption \
+              --region "${AWS::Region}" \
+              --query 'Parameter.Value' --output text)"
+
+            mkdir -p /etc/argus
+            umask 077
+            cat > /etc/argus/agent.env <<ENV
+            ARGUS_BACKEND_URL=${ArgusBackendUrl}
+            CLOUD_PROVIDER=aws
+            ENROLLMENT_POOL=baseline
+            AGENT_CONCURRENT_JOBS=4
+            ENROLLMENT_TOKEN=$ENROLLMENT_TOKEN
+            ENV
+
+            cat > /etc/systemd/system/argus-agent.service <<UNIT
+            [Unit]
+            Description=Argus DSPM agent
+            Wants=docker.service
+            After=docker.service
+
+            [Service]
+            TimeoutStartSec=0
+            Restart=always
+            ExecStartPre=-/usr/bin/docker stop argus-agent
+            ExecStartPre=-/usr/bin/docker rm argus-agent
+            ExecStartPre=/usr/bin/docker pull ${AgentImage}
+            ExecStart=/usr/bin/docker run --rm --name argus-agent --env-file /etc/argus/agent.env ${AgentImage}
+
+            [Install]
+            WantedBy=multi-user.target
+            UNIT
+
+            systemctl daemon-reload
+            systemctl enable --now argus-agent.service
+
+Outputs:
+  AgentInstanceId:
+    Description: "EC2 instance ID of the deployed agent."
+    Value:
+      Ref: "AgentInstance"
+  EnrollmentTokenParameterName:
+    Description: "SSM Parameter Store path holding the enrollment token. Rotate by writing a new value here, then `systemctl restart argus-agent` on the instance."
+    Value:
+      Ref: "EnrollmentTokenParam"
+  AgentRoleArn:
+    Description: "ARN of the agent's IAM role."
+    Value:
+      "Fn::GetAtt":
+        - "AgentInstanceRole"
+        - "Arn"
+  LogGroupName:
+    Description: "CloudWatch log group for agent logs."
+    Value:
+      Ref: "AgentLogGroup"

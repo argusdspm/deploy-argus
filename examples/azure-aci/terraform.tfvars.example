@@ -1,0 +1,17 @@
+# Copy this file to terraform.tfvars and fill in the values before running
+# terraform plan / apply.
+
+customer_name     = "acme"
+enrollment_token  = "<paste-from-argus-dashboard>"
+argus_backend_url = "https://api.argusdspm.com"
+
+azure_region = "eastus"
+environment  = "prod"
+
+# Receive an email when the agent container restarts more than 3x in 15min.
+alert_email = "security-team@example.com"
+
+# Opt in to the data stores you want scanned.
+enable_azure_sql_scanning = false
+enable_cosmos_db_scanning = false
+enable_synapse_scanning   = false

@@ -1,0 +1,41 @@
+name: terraform-validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.0"
+      - run: terraform fmt -check -recursive
+
+  validate:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module:
+          - modules/argus-agent-ec2
+          - modules/argus-agent-fargate
+          - modules/argus-agent-azure-aci
+          - examples/ec2-basic
+          - examples/fargate
+          - examples/azure-aci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.0"
+      - name: Terraform init (offline)
+        working-directory: ${{ matrix.module }}
+        run: terraform init -backend=false -input=false
+      - name: Terraform validate
+        working-directory: ${{ matrix.module }}
+        run: terraform validate
