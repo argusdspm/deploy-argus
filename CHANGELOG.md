@@ -2,7 +2,20 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [Semantic Versioning](https://semver.org/).
 
-## [v1.0] — 2026-05-05
+## Versioning policy
+
+`deploy-argus` tracks the Argus agent it deploys. Tags are full semver (`vX.Y.Z`), matching `argus_agent/__version__.py` in the main repo. The current `v0.7.5` tag aligns with agent `0.7.5`.
+
+- **Pre-v1.0 (current):** versions move with the agent. The agent and `deploy-argus` co-tag on every customer-visible IaC change. No long-term backwards-compat guarantees while either side is pre-v1.
+- **v1.0.0:** ships when the Argus backend + agent + `deploy-argus` co-release v1.0 stable. The module interface (variables, outputs) locks at that point.
+- **Post-v1.0:**
+  - **Major (`X.0.0`):** breaking module interface changes — variable rename or removal, module deletion, customer must edit Terraform.
+  - **Minor (`x.Y.0`):** new modules, new optional variables, new providers, new optional outputs (backwards-compatible additions).
+  - **Patch (`x.y.Z`):** doc fixes, default-value tweaks, internal refactors that don't change the module interface.
+
+When in doubt, bump minor.
+
+## [v0.7.5] — 2026-05-05
 
 Initial public release. Repo rebuilt from scratch from the Argus internal `terraform/` directory; preserves the prior repo state on the `legacy-archive` branch for reference.
 

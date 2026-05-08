@@ -23,7 +23,7 @@ Paste your enrollment token into the `EnrollmentToken` field, then **Create stac
 ```hcl
 # argus.tf
 module "argus" {
-  source            = "github.com/argusdspm/deploy-argus//modules/argus-agent-fargate?ref=v1.0"
+  source            = "github.com/argusdspm/deploy-argus//modules/argus-agent-fargate?ref=v0.7.5"
   customer_name     = "production"
   enrollment_token  = var.enrollment_token
   argus_backend_url = "https://api.argusdspm.com"
@@ -52,7 +52,7 @@ See `examples/ec2-basic/` for a minimal config. Same pattern as Fargate above, s
 
 ## Azure ACI (preview)
 
-See `examples/azure-aci/` and `modules/argus-agent-azure-aci/README.md`. Module works but no UI integration in v1.0 — expect minor breaking changes before stable.
+See `examples/azure-aci/` and `modules/argus-agent-azure-aci/README.md`. Module works but no UI integration in v0.7.5 — expect minor breaking changes before stable.
 
 ## Verify
 

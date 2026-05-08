@@ -1,6 +1,6 @@
 # Argus Agent EC2 Module — Variables
 #
-# v1.0 interface: customer provides an enrollment_token (from the Argus
+# v0.7.5 interface: customer provides an enrollment_token (from the Argus
 # dashboard); the agent exchanges it on first start for a per-container
 # API key. No pre-issued agent_id / agent_api_key plumbing.
 

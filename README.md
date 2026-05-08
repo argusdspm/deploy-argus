@@ -23,7 +23,7 @@ You will also need an **enrollment token** from the Argus dashboard (Settings �
 |---|---|---|
 | `modules/argus-agent-ec2` | Single EC2 instance, agent in Docker under systemd | Stable |
 | `modules/argus-agent-fargate` | ECS Fargate service (baseline + autoscaled burst) | Stable |
-| `modules/argus-agent-azure-aci` | Azure Container Instances | **Preview** — module works but no UI integration in v1.0; expect minor breaking changes |
+| `modules/argus-agent-azure-aci` | Azure Container Instances | **Preview** — module works but no UI integration in v0.7.5; expect minor breaking changes |
 
 All modules pull the agent image from the public registry `ghcr.io/argusdspm/argus-agent:stable`. No AWS ECR authentication required.
 
@@ -31,7 +31,7 @@ All modules pull the agent image from the public registry `ghcr.io/argusdspm/arg
 
 ```hcl
 module "argus" {
-  source            = "github.com/argusdspm/deploy-argus//modules/argus-agent-fargate?ref=v1.0"
+  source            = "github.com/argusdspm/deploy-argus//modules/argus-agent-fargate?ref=v0.7.5"
   customer_name     = "production"
   enrollment_token  = var.enrollment_token
   argus_backend_url = "https://api.argusdspm.com"
@@ -87,11 +87,11 @@ Detailed logs live at `/aws/ec2/argus-agent/*` (CloudWatch) for EC2 and `/ecs/ar
 
 ## Versioning
 
-Every release is tagged. Pin the tag in your `source = "...?ref=vX.Y"` to avoid breaking changes mid-flight.
+Every release is tagged with full semver (`vX.Y.Z`). Pin the tag in your `source = "...?ref=vX.Y.Z"` to avoid breaking changes mid-flight. Pre-v1.0 the tag tracks the agent version; v1.0.0 ships when agent + backend co-release stable. Full policy in `CHANGELOG.md`.
 
 | Tag | Argus agent image | Notes |
 |---|---|---|
-| `v1.0` | `ghcr.io/argusdspm/argus-agent:stable` | Initial public release |
+| `v0.7.5` | `ghcr.io/argusdspm/argus-agent:stable` | Initial public release |
 
 See `CHANGELOG.md` for what changed in each release and `COMPATIBILITY.md` for the deploy-argus ↔ argus version matrix.
 
