@@ -153,6 +153,20 @@ resource "aws_iam_policy" "task_s3" {
         Resource = "arn:aws:s3:::*"
       },
       {
+        Sid    = "S3BucketSecurityMetadata"
+        Effect = "Allow"
+        # Required for public-bucket detection. See
+        # docs/iam-permissions.md → S3 discovery section.
+        Action = [
+          "s3:GetBucketAcl",
+          "s3:GetBucketPolicy",
+          "s3:GetBucketPolicyStatus",
+          "s3:GetBucketPublicAccessBlock",
+          "s3:GetEncryptionConfiguration"
+        ]
+        Resource = "arn:aws:s3:::*"
+      },
+      {
         Sid      = "S3ObjectReadAccess"
         Effect   = "Allow"
         Action   = ["s3:GetObject", "s3:GetObjectVersion", "s3:GetObjectTagging"]
@@ -332,4 +346,200 @@ resource "aws_iam_policy" "task_cloudwatch" {
 resource "aws_iam_role_policy_attachment" "task_cloudwatch" {
   role       = aws_iam_role.task.name
   policy_arn = aws_iam_policy.task_cloudwatch.arn
+}
+
+# -----------------------------------------------------------------------------
+# Redshift Serverless — discovery + temporary credentials
+# -----------------------------------------------------------------------------
+
+resource "aws_iam_policy" "task_redshift_serverless" {
+  count       = local.redshift_enabled ? 1 : 0
+  name        = "${local.name_prefix}-task-redshift-serverless"
+  description = "Redshift Serverless describe + IAM-DB-Auth credentials."
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "RedshiftServerlessDiscovery"
+        Effect = "Allow"
+        Action = [
+          "redshift-serverless:ListWorkgroups",
+          "redshift-serverless:GetWorkgroup",
+          "redshift-serverless:ListTagsForResource"
+        ]
+        Resource = "*"
+      },
+      {
+        Sid      = "RedshiftServerlessCredentials"
+        Effect   = "Allow"
+        Action   = ["redshift-serverless:GetCredentials"]
+        Resource = "arn:aws:redshift-serverless:*:${data.aws_caller_identity.current.account_id}:workgroup/*"
+      }
+    ]
+  })
+
+  tags = local.common_tags
+}
+
+resource "aws_iam_role_policy_attachment" "task_redshift_serverless" {
+  count      = local.redshift_enabled ? 1 : 0
+  role       = aws_iam_role.task.name
+  policy_arn = aws_iam_policy.task_redshift_serverless[0].arn
+}
+
+# -----------------------------------------------------------------------------
+# IAM discovery — §11 Identity & Access in the Argus UI
+# -----------------------------------------------------------------------------
+
+resource "aws_iam_policy" "task_iam_discovery" {
+  count       = local.iam_enabled ? 1 : 0
+  name        = "${local.name_prefix}-task-iam-discovery"
+  description = "IAM read-only for identity discovery + policy analysis. Get*PolicyVersion + Get*Policy actions are required by the wildcard-inline over-privilege detector."
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "IAMDiscovery"
+        Effect = "Allow"
+        Action = [
+          "iam:ListUsers",
+          "iam:GetUser",
+          "iam:ListMFADevices",
+          "iam:ListAccessKeys",
+          "iam:GetAccessKeyLastUsed",
+          "iam:ListUserTags",
+          "iam:ListUserPolicies",
+          "iam:GetUserPolicy",
+          "iam:ListAttachedUserPolicies",
+          "iam:ListRoles",
+          "iam:GetRole",
+          "iam:ListRolePolicies",
+          "iam:GetRolePolicy",
+          "iam:ListAttachedRolePolicies",
+          "iam:ListGroups",
+          "iam:ListGroupPolicies",
+          "iam:GetGroupPolicy",
+          "iam:ListAttachedGroupPolicies",
+          "iam:GetPolicy",
+          "iam:GetPolicyVersion",
+          "iam:GenerateCredentialReport",
+          "iam:GetCredentialReport",
+          "iam:SimulatePrincipalPolicy"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+
+  tags = local.common_tags
+}
+
+resource "aws_iam_role_policy_attachment" "task_iam_discovery" {
+  count      = local.iam_enabled ? 1 : 0
+  role       = aws_iam_role.task.name
+  policy_arn = aws_iam_policy.task_iam_discovery[0].arn
+}
+
+# -----------------------------------------------------------------------------
+# CloudWatch read — bucket-size / object-count estimation
+# -----------------------------------------------------------------------------
+
+resource "aws_iam_policy" "task_cloudwatch_read" {
+  count       = local.s3_enabled ? 1 : 0
+  name        = "${local.name_prefix}-task-cloudwatch-read"
+  description = "CloudWatch read for fast S3 size/count estimation."
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "CloudWatchReadForS3Stats"
+        Effect   = "Allow"
+        Action   = ["cloudwatch:GetMetricStatistics"]
+        Resource = "*"
+      }
+    ]
+  })
+
+  tags = local.common_tags
+}
+
+resource "aws_iam_role_policy_attachment" "task_cloudwatch_read" {
+  count      = local.s3_enabled ? 1 : 0
+  role       = aws_iam_role.task.name
+  policy_arn = aws_iam_policy.task_cloudwatch_read[0].arn
+}
+
+# -----------------------------------------------------------------------------
+# Remediation — S3 + IAM write
+# -----------------------------------------------------------------------------
+
+resource "aws_iam_policy" "task_s3_remediation" {
+  count       = local.remediation_enabled && local.s3_enabled ? 1 : 0
+  name        = "${local.name_prefix}-task-s3-remediation"
+  description = "S3 write actions for remediation: block public access, encryption, versioning, policy."
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "S3RemediationActions"
+        Effect = "Allow"
+        Action = [
+          "s3:PutBucketPublicAccessBlock",
+          "s3:DeletePublicAccessBlock",
+          "s3:PutEncryptionConfiguration",
+          "s3:DeleteBucketEncryption",
+          "s3:PutBucketVersioning",
+          "s3:PutBucketPolicy",
+          "s3:DeleteBucketPolicy"
+        ]
+        Resource = "arn:aws:s3:::*"
+      }
+    ]
+  })
+
+  tags = local.common_tags
+}
+
+resource "aws_iam_role_policy_attachment" "task_s3_remediation" {
+  count      = local.remediation_enabled && local.s3_enabled ? 1 : 0
+  role       = aws_iam_role.task.name
+  policy_arn = aws_iam_policy.task_s3_remediation[0].arn
+}
+
+resource "aws_iam_policy" "task_iam_remediation" {
+  count       = local.remediation_enabled && local.iam_enabled ? 1 : 0
+  name        = "${local.name_prefix}-task-iam-remediation"
+  description = "IAM write actions for remediation: disable stale keys, attach/detach policies, enforce MFA."
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "IAMRemediationActions"
+        Effect = "Allow"
+        Action = [
+          "iam:UpdateAccessKey",
+          "iam:AttachUserPolicy",
+          "iam:DetachUserPolicy",
+          "iam:AttachRolePolicy",
+          "iam:DetachRolePolicy",
+          "iam:PutUserPolicy",
+          "iam:DeleteUserPolicy"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+
+  tags = local.common_tags
+}
+
+resource "aws_iam_role_policy_attachment" "task_iam_remediation" {
+  count      = local.remediation_enabled && local.iam_enabled ? 1 : 0
+  role       = aws_iam_role.task.name
+  policy_arn = aws_iam_policy.task_iam_remediation[0].arn
 }

@@ -51,6 +51,8 @@ locals {
   rds_enabled      = var.enable_all_datastores || var.enable_rds_scanning
   dynamodb_enabled = var.enable_all_datastores || var.enable_dynamodb_scanning
   redshift_enabled = var.enable_all_datastores || var.enable_redshift_scanning
+  iam_enabled         = var.enable_iam_discovery
+  remediation_enabled = var.enable_remediation
 
   enabled_datastores = jsonencode({
     s3       = local.s3_enabled

@@ -112,6 +112,11 @@ Resources:
                   - "s3:GetBucketLocation"
                   - "s3:GetBucketTagging"
                   - "s3:GetBucketVersioning"
+                  - "s3:GetBucketAcl"
+                  - "s3:GetBucketPolicy"
+                  - "s3:GetBucketPolicyStatus"
+                  - "s3:GetBucketPublicAccessBlock"
+                  - "s3:GetEncryptionConfiguration"
                 Resource: "arn:aws:s3:::*"
               - Effect: "Allow"
                 Action: "s3:ListBucket"
@@ -122,6 +127,77 @@ Resources:
                   - "s3:GetObjectVersion"
                   - "s3:GetObjectTagging"
                 Resource: "arn:aws:s3:::*/*"
+        # Optional: enables Argus to remediate S3 misconfigurations
+        # (block public access, enable encryption, restrict bucket policy,
+        # enable versioning). Comment out this statement if your tenant
+        # uses read-only mode and remediation is disabled in Settings.
+        - PolicyName: "argus-agent-s3-remediation"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "s3:PutBucketPublicAccessBlock"
+                  - "s3:DeletePublicAccessBlock"
+                  - "s3:PutEncryptionConfiguration"
+                  - "s3:DeleteBucketEncryption"
+                  - "s3:PutBucketVersioning"
+                  - "s3:PutBucketPolicy"
+                  - "s3:DeleteBucketPolicy"
+                Resource: "arn:aws:s3:::*"
+        - PolicyName: "argus-agent-iam-discovery"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              # Read-only IAM inventory + policy inspection.
+              # iam:GetPolicyVersion + the GetUserPolicy/GetRolePolicy/
+              # GetGroupPolicy actions are required by the wildcard-inline
+              # over-privilege detector (Argus walks policy documents, not
+              # just managed-ARN matches).
+              - Effect: "Allow"
+                Action:
+                  - "iam:ListUsers"
+                  - "iam:GetUser"
+                  - "iam:ListMFADevices"
+                  - "iam:ListAccessKeys"
+                  - "iam:GetAccessKeyLastUsed"
+                  - "iam:ListUserTags"
+                  - "iam:ListUserPolicies"
+                  - "iam:GetUserPolicy"
+                  - "iam:ListAttachedUserPolicies"
+                  - "iam:ListRoles"
+                  - "iam:GetRole"
+                  - "iam:ListRolePolicies"
+                  - "iam:GetRolePolicy"
+                  - "iam:ListAttachedRolePolicies"
+                  - "iam:ListGroups"
+                  - "iam:ListGroupPolicies"
+                  - "iam:GetGroupPolicy"
+                  - "iam:ListAttachedGroupPolicies"
+                  - "iam:GetPolicy"
+                  - "iam:GetPolicyVersion"
+                  - "iam:GenerateCredentialReport"
+                  - "iam:GetCredentialReport"
+                  - "iam:SimulatePrincipalPolicy"
+                Resource: "*"
+        # Optional: enables Argus to remediate IAM misconfigurations
+        # (disable stale access keys, remove over-privileged policies,
+        # enforce MFA). Comment out this statement if your tenant uses
+        # read-only mode and remediation is disabled in Settings.
+        - PolicyName: "argus-agent-iam-remediation"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "iam:UpdateAccessKey"
+                  - "iam:AttachUserPolicy"
+                  - "iam:DetachUserPolicy"
+                  - "iam:AttachRolePolicy"
+                  - "iam:DetachRolePolicy"
+                  - "iam:PutUserPolicy"
+                  - "iam:DeleteUserPolicy"
+                Resource: "*"
         - PolicyName: "argus-agent-rds-scan"
           PolicyDocument:
             Version: "2012-10-17"
@@ -145,6 +221,24 @@ Resources:
                   - "dynamodb:Query"
                   - "dynamodb:GetItem"
                   - "dynamodb:BatchGetItem"
+                Resource: "*"
+        - PolicyName: "argus-agent-redshift-serverless"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "redshift-serverless:ListWorkgroups"
+                  - "redshift-serverless:GetWorkgroup"
+                  - "redshift-serverless:ListTagsForResource"
+                  - "redshift-serverless:GetCredentials"
+                Resource: "*"
+        - PolicyName: "argus-agent-cloudwatch-read"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action: "cloudwatch:GetMetricStatistics"
                 Resource: "*"
         - PolicyName: "argus-agent-ec2-metadata"
           PolicyDocument:

@@ -18,10 +18,12 @@ locals {
   name_prefix = "argus-agent-${var.customer_name}"
   image_uri   = "${var.agent_image_registry}:${var.agent_image_tag}"
 
-  s3_enabled       = var.enable_all_datastores || var.enable_s3_scanning
-  rds_enabled      = var.enable_all_datastores || var.enable_rds_scanning
-  dynamodb_enabled = var.enable_all_datastores || var.enable_dynamodb_scanning
-  redshift_enabled = var.enable_all_datastores || var.enable_redshift_scanning
+  s3_enabled          = var.enable_all_datastores || var.enable_s3_scanning
+  rds_enabled         = var.enable_all_datastores || var.enable_rds_scanning
+  dynamodb_enabled    = var.enable_all_datastores || var.enable_dynamodb_scanning
+  redshift_enabled    = var.enable_all_datastores || var.enable_redshift_scanning
+  iam_enabled         = var.enable_iam_discovery
+  remediation_enabled = var.enable_remediation
 
   common_tags = merge({
     Name        = local.name_prefix

@@ -200,7 +200,19 @@ variable "enable_dynamodb_scanning" {
 }
 
 variable "enable_redshift_scanning" {
-  description = "Enable Redshift scanning. Grants discovery + Data API access on all clusters."
+  description = "Enable Redshift scanning. Grants discovery + Data API access on all clusters (provisioned and Serverless)."
+  type        = bool
+  default     = false
+}
+
+variable "enable_iam_discovery" {
+  description = "Enable IAM discovery. Grants read across users, roles, groups, attached + inline policy documents, MFA devices, access keys, and credential reports. Required for §11 Identity & Access in the Argus UI."
+  type        = bool
+  default     = false
+}
+
+variable "enable_remediation" {
+  description = "Enable Argus to remediate S3 + IAM misconfigurations (block public access, enforce encryption, restrict bucket policy, enable versioning, disable stale access keys, remove over-privileged policies, enforce MFA). Tenant Settings → Remediation must also be enabled at the application layer."
   type        = bool
   default     = false
 }

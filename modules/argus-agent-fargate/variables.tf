@@ -173,7 +173,19 @@ variable "enable_dynamodb_scanning" {
 
 variable "enable_redshift_scanning" {
   type        = bool
-  description = "Enable Redshift scanning."
+  description = "Enable Redshift scanning (provisioned + Serverless workgroups)."
+  default     = false
+}
+
+variable "enable_iam_discovery" {
+  type        = bool
+  description = "Enable IAM discovery — read across users, roles, groups, attached + inline policy documents, MFA devices, access keys, credential reports. Required for §11 Identity & Access in the Argus UI."
+  default     = false
+}
+
+variable "enable_remediation" {
+  type        = bool
+  description = "Enable Argus to remediate S3 + IAM misconfigurations. Tenant Settings → Remediation must also be enabled at the application layer."
   default     = false
 }
 
