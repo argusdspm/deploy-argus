@@ -1,6 +1,6 @@
 # Example: Azure ACI deployment (PREVIEW)
 
-> **PREVIEW** — The `argus-agent-azure-aci` module is not yet wired into the Argus dashboard's Deploy Agent UI. The module works end-to-end, but expect minor breaking changes before the v1.x stable line. Pin `?ref=v0.7.5` in your `source` to insulate yourself.
+> **PREVIEW** — The `argus-agent-azure-aci` module is not yet wired into the Argus dashboard's Deploy Agent UI. The module works end-to-end, but expect minor breaking changes before the v1.x stable line. Pin `?ref=v0.7.6` in your `source` to insulate yourself.
 
 Minimal Terraform configuration that deploys the Argus agent on Azure Container Instances using the `argus-agent-azure-aci` module.
 

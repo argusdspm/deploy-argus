@@ -296,6 +296,24 @@ resource "aws_iam_policy" "argus_agent_s3_policy" {
         Resource = "arn:aws:s3:::*"
       },
       {
+        Sid    = "S3BucketSecurityMetadata"
+        Effect = "Allow"
+        # Required for public-bucket detection. Argus uses
+        # s3:GetBucketPolicyStatus as the canonical IsPublic signal
+        # (collapses policy + PAB into one boolean); without it the
+        # agent reports is_public=false for every bucket. ACL +
+        # PolicyDocument fallbacks cover legacy ACL grants and
+        # remediation preflight respectively.
+        Action = [
+          "s3:GetBucketAcl",
+          "s3:GetBucketPolicy",
+          "s3:GetBucketPolicyStatus",
+          "s3:GetBucketPublicAccessBlock",
+          "s3:GetEncryptionConfiguration"
+        ]
+        Resource = "arn:aws:s3:::*"
+      },
+      {
         Sid    = "S3ObjectReadAccess"
         Effect = "Allow"
         Action = [
@@ -451,5 +469,222 @@ resource "aws_iam_policy" "argus_agent_redshift_policy" {
 resource "aws_iam_role_policy_attachment" "argus_agent_redshift_attachment" {
   count      = local.redshift_enabled ? 1 : 0
   policy_arn = aws_iam_policy.argus_agent_redshift_policy[0].arn
+  role       = aws_iam_role.argus_agent_role.name
+}
+
+# -----------------------------------------------------------------------------
+# Redshift Serverless — discovery + temporary credentials
+# Provisioned Redshift is covered above; Serverless workgroups use a
+# separate IAM namespace (redshift-serverless:*).
+# -----------------------------------------------------------------------------
+
+resource "aws_iam_policy" "argus_agent_redshift_serverless_policy" {
+  count       = local.redshift_enabled ? 1 : 0
+  name        = "ArgusAgentRedshiftServerlessPolicy-${var.customer_name}"
+  description = "Redshift Serverless describe + IAM-DB-Auth credentials."
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "RedshiftServerlessDiscovery"
+        Effect = "Allow"
+        Action = [
+          "redshift-serverless:ListWorkgroups",
+          "redshift-serverless:GetWorkgroup",
+          "redshift-serverless:ListTagsForResource"
+        ]
+        Resource = "*"
+      },
+      {
+        Sid      = "RedshiftServerlessCredentials"
+        Effect   = "Allow"
+        Action   = ["redshift-serverless:GetCredentials"]
+        Resource = "arn:aws:redshift-serverless:*:${data.aws_caller_identity.current.account_id}:workgroup/*"
+      }
+    ]
+  })
+
+  tags = merge(local.common_tags, {
+    Name = "argus-agent-redshift-serverless-policy-${var.customer_name}"
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "argus_agent_redshift_serverless_attachment" {
+  count      = local.redshift_enabled ? 1 : 0
+  policy_arn = aws_iam_policy.argus_agent_redshift_serverless_policy[0].arn
+  role       = aws_iam_role.argus_agent_role.name
+}
+
+# -----------------------------------------------------------------------------
+# IAM discovery — §11 Identity & Access in the Argus UI
+# Read-only. The GetPolicyVersion + Get{User,Role,Group}Policy actions
+# are required by the wildcard-inline over-privilege detector; without
+# them Argus only matches AWS-managed admin ARNs and misses custom
+# wildcard policies entirely.
+# -----------------------------------------------------------------------------
+
+resource "aws_iam_policy" "argus_agent_iam_discovery_policy" {
+  count       = local.iam_enabled ? 1 : 0
+  name        = "ArgusAgentIAMDiscoveryPolicy-${var.customer_name}"
+  description = "IAM read-only for Argus identity discovery + policy analysis."
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "IAMDiscovery"
+        Effect = "Allow"
+        Action = [
+          "iam:ListUsers",
+          "iam:GetUser",
+          "iam:ListMFADevices",
+          "iam:ListAccessKeys",
+          "iam:GetAccessKeyLastUsed",
+          "iam:ListUserTags",
+          "iam:ListUserPolicies",
+          "iam:GetUserPolicy",
+          "iam:ListAttachedUserPolicies",
+          "iam:ListRoles",
+          "iam:GetRole",
+          "iam:ListRolePolicies",
+          "iam:GetRolePolicy",
+          "iam:ListAttachedRolePolicies",
+          "iam:ListGroups",
+          "iam:ListGroupPolicies",
+          "iam:GetGroupPolicy",
+          "iam:ListAttachedGroupPolicies",
+          "iam:GetPolicy",
+          "iam:GetPolicyVersion",
+          "iam:GenerateCredentialReport",
+          "iam:GetCredentialReport",
+          "iam:SimulatePrincipalPolicy"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+
+  tags = merge(local.common_tags, {
+    Name = "argus-agent-iam-discovery-policy-${var.customer_name}"
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "argus_agent_iam_discovery_attachment" {
+  count      = local.iam_enabled ? 1 : 0
+  policy_arn = aws_iam_policy.argus_agent_iam_discovery_policy[0].arn
+  role       = aws_iam_role.argus_agent_role.name
+}
+
+# -----------------------------------------------------------------------------
+# CloudWatch read — bucket-size / object-count estimation
+# Without this, S3 discovery falls back to a full paginated list to
+# compute size, which is ~30× slower on multi-thousand-object buckets.
+# -----------------------------------------------------------------------------
+
+resource "aws_iam_policy" "argus_agent_cloudwatch_read_policy" {
+  count       = local.s3_enabled ? 1 : 0
+  name        = "ArgusAgentCloudWatchReadPolicy-${var.customer_name}"
+  description = "CloudWatch read for fast S3 size/count estimation."
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "CloudWatchReadForS3Stats"
+        Effect   = "Allow"
+        Action   = ["cloudwatch:GetMetricStatistics"]
+        Resource = "*"
+      }
+    ]
+  })
+
+  tags = merge(local.common_tags, {
+    Name = "argus-agent-cloudwatch-read-policy-${var.customer_name}"
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "argus_agent_cloudwatch_read_attachment" {
+  count      = local.s3_enabled ? 1 : 0
+  policy_arn = aws_iam_policy.argus_agent_cloudwatch_read_policy[0].arn
+  role       = aws_iam_role.argus_agent_role.name
+}
+
+# -----------------------------------------------------------------------------
+# Remediation — write actions across S3 + IAM
+# Enabled only when var.enable_remediation = true AND Tenant Settings →
+# Remediation is enabled at the application layer (both gates required).
+# -----------------------------------------------------------------------------
+
+resource "aws_iam_policy" "argus_agent_s3_remediation_policy" {
+  count       = local.remediation_enabled && local.s3_enabled ? 1 : 0
+  name        = "ArgusAgentS3RemediationPolicy-${var.customer_name}"
+  description = "S3 write for Argus remediation (block public access, encryption, versioning, policy)."
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "S3RemediationActions"
+        Effect = "Allow"
+        # Note: boto3 delete_public_access_block / delete_bucket_encryption
+        # authorize against the s3:Put* actions below — there is no separate
+        # s3:Delete* IAM action for those two operations.
+        Action = [
+          "s3:PutBucketPublicAccessBlock",
+          "s3:PutEncryptionConfiguration",
+          "s3:PutBucketVersioning",
+          "s3:PutBucketPolicy",
+          "s3:DeleteBucketPolicy"
+        ]
+        Resource = "arn:aws:s3:::*"
+      }
+    ]
+  })
+
+  tags = merge(local.common_tags, {
+    Name = "argus-agent-s3-remediation-policy-${var.customer_name}"
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "argus_agent_s3_remediation_attachment" {
+  count      = local.remediation_enabled && local.s3_enabled ? 1 : 0
+  policy_arn = aws_iam_policy.argus_agent_s3_remediation_policy[0].arn
+  role       = aws_iam_role.argus_agent_role.name
+}
+
+resource "aws_iam_policy" "argus_agent_iam_remediation_policy" {
+  count       = local.remediation_enabled && local.iam_enabled ? 1 : 0
+  name        = "ArgusAgentIAMRemediationPolicy-${var.customer_name}"
+  description = "IAM write for Argus remediation (disable stale keys, remove over-privileged policies, enforce MFA)."
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "IAMRemediationActions"
+        Effect = "Allow"
+        Action = [
+          "iam:UpdateAccessKey",
+          "iam:AttachUserPolicy",
+          "iam:DetachUserPolicy",
+          "iam:AttachRolePolicy",
+          "iam:DetachRolePolicy",
+          "iam:PutUserPolicy",
+          "iam:DeleteUserPolicy"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+
+  tags = merge(local.common_tags, {
+    Name = "argus-agent-iam-remediation-policy-${var.customer_name}"
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "argus_agent_iam_remediation_attachment" {
+  count      = local.remediation_enabled && local.iam_enabled ? 1 : 0
+  policy_arn = aws_iam_policy.argus_agent_iam_remediation_policy[0].arn
   role       = aws_iam_role.argus_agent_role.name
 }
