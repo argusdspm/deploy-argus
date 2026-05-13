@@ -23,7 +23,7 @@ You will also need an **enrollment token** from the Argus dashboard (Settings �
 |---|---|---|
 | `modules/argus-agent-ec2` | Single EC2 instance, agent in Docker under systemd | Stable |
 | `modules/argus-agent-fargate` | ECS Fargate service (baseline + autoscaled burst) | Stable |
-| `modules/argus-agent-azure-aci` | Azure Container Instances | **Preview** — module works but no UI integration in v0.7.5; expect minor breaking changes |
+| `modules/argus-agent-azure-aci` | Azure Container Instances | **Preview** — module works but no UI integration in v0.7.6; expect minor breaking changes |
 
 All modules pull the agent image from the public registry `ghcr.io/argusdspm/argus-agent:stable`. No AWS ECR authentication required.
 
@@ -31,7 +31,7 @@ All modules pull the agent image from the public registry `ghcr.io/argusdspm/arg
 
 ```hcl
 module "argus" {
-  source            = "github.com/argusdspm/deploy-argus//modules/argus-agent-fargate?ref=v0.7.5"
+  source            = "github.com/argusdspm/deploy-argus//modules/argus-agent-fargate?ref=v0.7.6"
   customer_name     = "production"
   enrollment_token  = var.enrollment_token
   argus_backend_url = "https://api.argusdspm.com"
@@ -92,6 +92,7 @@ Every release is tagged with full semver (`vX.Y.Z`). Pin the tag in your `source
 | Tag | Argus agent image | Notes |
 |---|---|---|
 | `v0.7.5` | `ghcr.io/argusdspm/argus-agent:stable` | Initial public release |
+| `v0.7.6` | `ghcr.io/argusdspm/argus-agent:stable` | IAM permission completion: adds the S3 + IAM + Redshift Serverless + CloudWatch read actions the agent has always needed but the IaC never granted. Two new opt-in vars: `enable_iam_discovery`, `enable_remediation`. Backwards-compatible. |
 
 See `CHANGELOG.md` for what changed in each release and `COMPATIBILITY.md` for the deploy-argus ↔ argus version matrix.
 

@@ -627,11 +627,12 @@ resource "aws_iam_policy" "argus_agent_s3_remediation_policy" {
       {
         Sid    = "S3RemediationActions"
         Effect = "Allow"
+        # Note: boto3 delete_public_access_block / delete_bucket_encryption
+        # authorize against the s3:Put* actions below — there is no separate
+        # s3:Delete* IAM action for those two operations.
         Action = [
           "s3:PutBucketPublicAccessBlock",
-          "s3:DeletePublicAccessBlock",
           "s3:PutEncryptionConfiguration",
-          "s3:DeleteBucketEncryption",
           "s3:PutBucketVersioning",
           "s3:PutBucketPolicy",
           "s3:DeleteBucketPolicy"

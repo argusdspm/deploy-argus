@@ -71,10 +71,8 @@ free.
 
 | Action | Used by | IaC |
 |---|---|---|
-| `s3:PutBucketPublicAccessBlock` | `block_public_access` remediation step | **MISSING everywhere** |
-| `s3:DeletePublicAccessBlock` | rollback for `block_public_access` | **MISSING everywhere** |
-| `s3:PutEncryptionConfiguration` | `enable_encryption` remediation step | **MISSING everywhere** |
-| `s3:DeleteBucketEncryption` | rollback for `enable_encryption` | **MISSING everywhere** |
+| `s3:PutBucketPublicAccessBlock` | `block_public_access` remediation + rollback (boto3 `delete_public_access_block` authorizes against this Put action) | **MISSING everywhere** |
+| `s3:PutEncryptionConfiguration` | `enable_encryption` remediation + rollback (boto3 `delete_bucket_encryption` authorizes against this Put action) | **MISSING everywhere** |
 | `s3:PutBucketVersioning` | `enable_versioning` remediation step (also covers rollback — versioning state mutates in place) | **MISSING everywhere** |
 | `s3:PutBucketPolicy` | `restrict_bucket_policy` remediation step (write the stricter policy) | **MISSING everywhere** |
 | `s3:DeleteBucketPolicy` | `restrict_bucket_policy` (when stricter policy is empty) | **MISSING everywhere** |
@@ -259,8 +257,8 @@ that the Fargate platform itself needs. No change required.
 - `s3:GetBucketPolicyStatus`
 - `s3:GetBucketPublicAccessBlock`
 - `s3:GetEncryptionConfiguration`
-- `s3:PutBucketPublicAccessBlock` + `s3:DeletePublicAccessBlock` (remediation + rollback)
-- `s3:PutEncryptionConfiguration` + `s3:DeleteBucketEncryption`
+- `s3:PutBucketPublicAccessBlock` (covers remediation and rollback via boto3 `delete_public_access_block`)
+- `s3:PutEncryptionConfiguration` (covers remediation and rollback via boto3 `delete_bucket_encryption`)
 - `s3:PutBucketVersioning`
 - `s3:PutBucketPolicy` + `s3:DeleteBucketPolicy`
 

@@ -4,7 +4,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## Versioning policy
 
-`deploy-argus` tracks the Argus agent it deploys. Tags are full semver (`vX.Y.Z`), matching `argus_agent/__version__.py` in the main repo. The current `v0.7.5` tag aligns with agent `0.7.5`.
+`deploy-argus` tracks the Argus agent it deploys. Tags are full semver (`vX.Y.Z`), matching `argus_agent/__version__.py` in the main repo. The current `v0.7.6` tag aligns with agent `0.7.5+` (v0.7.6 is a deploy-argus-only bump — agent code unchanged from v0.7.5; this release plugs the IAM permission gaps the agent always needed).
 
 - **Pre-v1.0 (current):** versions move with the agent. The agent and `deploy-argus` co-tag on every customer-visible IaC change. No long-term backwards-compat guarantees while either side is pre-v1.
 - **v1.0.0:** ships when the Argus backend + agent + `deploy-argus` co-release v1.0 stable. The module interface (variables, outputs) locks at that point.
@@ -15,7 +15,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 When in doubt, bump minor.
 
-## [Unreleased] — v0.7.6 prep
+## [v0.7.6] — 2026-05-13
 
 ### Added
 - `docs/iam-permissions.md` — canonical inventory of every AWS API action the Argus agent calls in production, with a gap analysis driving the IaC changes below.
