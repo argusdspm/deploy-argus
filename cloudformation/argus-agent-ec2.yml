@@ -1,9 +1,9 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >
-  Argus DSPM agent — single-EC2 deployment using the public Docker image
+  Argus DSPM agent - single-EC2 deployment using the public Docker image
   on GitHub Container Registry. The agent reads its enrollment token
   from SSM Parameter Store at boot and exchanges it for a per-container
-  API key via /api/v1/agents/bootstrap. All data flow is outbound — no
+  API key via /api/v1/agents/bootstrap. All data flow is outbound - no
   inbound from the Argus control plane.
 
 Parameters:
@@ -26,7 +26,7 @@ Parameters:
     ConstraintDescription: "must start with https://."
   AgentImage:
     Type: String
-    Description: "Public agent OCI image. Default tracks the rolling stable tag on GitHub Container Registry — anonymous pulls, no AWS ECR auth required."
+    Description: "Public agent OCI image. Default tracks the rolling stable tag on GitHub Container Registry - anonymous pulls, no AWS ECR auth required."
     Default: "ghcr.io/argusdspm/argus-agent:stable"
   InstanceType:
     Type: String
@@ -50,7 +50,7 @@ Resources:
   # SecureString type (only String / StringList). The parameter is stored
   # as String; access is controlled by the agent's IAM role + the
   # SSM service's transport encryption. Token is short-lived in SSM in
-  # the sense that the agent reads it at boot — rotate via the Argus
+  # the sense that the agent reads it at boot - rotate via the Argus
   # dashboard if you suspect leakage.
   EnrollmentTokenParam:
     Type: "AWS::SSM::Parameter"
@@ -137,7 +137,7 @@ Resources:
             Statement:
               - Effect: "Allow"
                 # Note: boto3 delete_public_access_block / delete_bucket_encryption
-                # authorize against the s3:Put* actions above — there is no
+                # authorize against the s3:Put* actions above - there is no
                 # separate s3:Delete* IAM action for those two operations.
                 Action:
                   - "s3:PutBucketPublicAccessBlock"
@@ -280,7 +280,7 @@ Resources:
       RetentionInDays: 30
 
   # ---------------------------------------------------------------------------
-  # EC2 instance — Amazon Linux 2 via SSM lookup (works in every region
+  # EC2 instance - Amazon Linux 2 via SSM lookup (works in every region
   # without an explicit AmiByRegion mapping).
   # ---------------------------------------------------------------------------
   AgentInstance:

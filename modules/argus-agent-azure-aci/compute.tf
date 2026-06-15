@@ -1,6 +1,6 @@
 # Azure Container Instance running the Argus agent.
 #
-# One container, one group — ACI groups are mostly useful for sidecars and
+# One container, one group - ACI groups are mostly useful for sidecars and
 # we don't need any. The agent polls the Argus control plane for work, so
 # it needs outbound HTTPS but no inbound. We still publish :8080 for the
 # container's own /health probe (even though nothing external hits it)
@@ -32,7 +32,7 @@ resource "azurerm_container_group" "argus_agent" {
       protocol = "TCP"
     }
 
-    # Non-secret configuration — safe to expose via Azure Monitor /
+    # Non-secret configuration - safe to expose via Azure Monitor /
     # portal. Secrets go in secure_environment_variables below.
     # Wave 4 Track J: ARGUS_BACKEND_URL replaces the legacy SAAS_API_URL,
     # AGENT_ID is removed (the agent self-identifies via /agents/me),

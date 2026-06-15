@@ -61,7 +61,7 @@ resource "azurerm_network_security_group" "argus" {
     destination_address_prefix = "*"
   }
 
-  # SQL egress — only opened when the customer turns on Azure SQL or
+  # SQL egress - only opened when the customer turns on Azure SQL or
   # Synapse scanning. Azure SQL uses 1433; Synapse-on-demand uses the
   # same port.
   dynamic "security_rule" {

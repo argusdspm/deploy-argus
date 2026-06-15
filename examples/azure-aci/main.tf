@@ -22,7 +22,7 @@ module "argus_agent_azure" {
   azure_region = var.azure_region
   environment  = var.environment
 
-  # Datastore opt-ins — Blob on by default, DBs off unless requested.
+  # Datastore opt-ins - Blob on by default, DBs off unless requested.
   enable_blob_scanning      = true
   enable_azure_sql_scanning = var.enable_azure_sql_scanning
   enable_cosmos_db_scanning = var.enable_cosmos_db_scanning

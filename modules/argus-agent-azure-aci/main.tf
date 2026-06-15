@@ -41,7 +41,7 @@ data "azurerm_client_config" "current" {}
 
 # Local naming + derived values.
 locals {
-  # Azure resource names are DNS labels in most cases — keep them short
+  # Azure resource names are DNS labels in most cases - keep them short
   # and strip anything that isn't alphanumeric or a dash.
   sanitized_name = lower(replace(var.customer_name, "/[^a-zA-Z0-9-]/", "-"))
 
@@ -79,7 +79,7 @@ locals {
   # Split-org identity: either none of the existing_* inputs are set
   # (module creates the SP) or all three are set (module binds to it).
   # "Partial" combinations would silently create a new SP but try to
-  # use a mix of fields, which is always a bug — catch it at plan time.
+  # use a mix of fields, which is always a bug - catch it at plan time.
   existing_sp_inputs_set = [
     var.existing_client_id != null && var.existing_client_id != "",
     var.existing_client_secret != null && var.existing_client_secret != "",
@@ -109,7 +109,7 @@ resource "terraform_data" "validate_existing_sp_triplet" {
   }
 }
 
-# Resource group for every resource this module owns — makes uninstall a
+# Resource group for every resource this module owns - makes uninstall a
 # single `terraform destroy` plus a portal cleanup check.
 resource "azurerm_resource_group" "argus" {
   name     = "rg-${local.name_prefix}"

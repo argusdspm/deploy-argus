@@ -1,6 +1,6 @@
-# Argus DSPM — Deployment Modules
+# Argus DSPM - Deployment Modules
 
-Customer-facing infrastructure-as-code for deploying the Argus DSPM agent into your own cloud account. Your sensitive data never leaves your environment — only metadata and findings summaries are sent to the Argus control plane.
+Customer-facing infrastructure-as-code for deploying the Argus DSPM agent into your own cloud account. Your sensitive data never leaves your environment - only metadata and findings summaries are sent to the Argus control plane.
 
 This repo contains:
 - **Terraform modules** for AWS EC2, AWS Fargate, and (preview) Azure ACI.
@@ -15,7 +15,7 @@ This repo contains:
 | AWS (CloudFormation) | A web browser | AWS console sign-in |
 | Azure (preview) | `terraform >= 1.5`, `az` CLI | `az login` |
 
-You will also need an **enrollment token** from the Argus dashboard (Settings → Cloud Accounts → Generate Enrollment Token). Keep it secret — it is reusable and bootstraps any number of agents into the cloud account it was issued for.
+You will also need an **enrollment token** from the Argus dashboard (Settings → Cloud Accounts → Generate Enrollment Token). Keep it secret - it is reusable and bootstraps any number of agents into the cloud account it was issued for.
 
 ## Modules
 
@@ -23,20 +23,43 @@ You will also need an **enrollment token** from the Argus dashboard (Settings �
 |---|---|---|
 | `modules/argus-agent-ec2` | Single EC2 instance, agent in Docker under systemd | Stable |
 | `modules/argus-agent-fargate` | ECS Fargate service (baseline + autoscaled burst) | Stable |
-| `modules/argus-agent-azure-aci` | Azure Container Instances | **Preview** — module works but no UI integration in v0.7.6; expect minor breaking changes |
+| `modules/argus-agent-azure-aci` | Azure Container Instances | **Preview** - module works but no UI integration in v0.7.6; expect minor breaking changes |
 
 All modules pull the agent image from the public registry `ghcr.io/argusdspm/argus-agent:stable`. No AWS ECR authentication required.
 
-## Terraform — copy-paste
+## Terraform - copy-paste
+
+The module assumes you already have an `aws` provider configured. In a fresh
+project, drop the following in a `providers.tf` next to your `main.tf`:
+
+```hcl
+terraform {
+  required_version = ">= 1.5"
+  required_providers {
+    aws = { source = "hashicorp/aws", version = "~> 5.0" }
+  }
+}
+
+provider "aws" {
+  region = "us-east-2" # match the region you want the agent to run in
+}
+```
+
+Then `main.tf`:
 
 ```hcl
 module "argus" {
-  source            = "github.com/argusdspm/deploy-argus//modules/argus-agent-fargate?ref=v0.7.6"
+  source            = "github.com/argusdspm/deploy-argus//modules/argus-agent-fargate?ref=v0.7.7"
   customer_name     = "production"
   enrollment_token  = var.enrollment_token
   argus_backend_url = "https://api.argusdspm.com"
   vpc_id            = "vpc-xxxxxxxx"
   subnet_ids        = ["subnet-aaaa", "subnet-bbbb"]
+
+  # Set true when your subnets are public (default-VPC style) and have no NAT
+  # gateway. Leave false (the default) when running in private subnets that
+  # reach the internet via NAT.
+  assign_public_ip = false
 
   enable_s3_scanning = true
 }
@@ -52,9 +75,13 @@ terraform init
 terraform apply -var enrollment_token="<your-enrollment-token>"
 ```
 
+The module reads the AWS region from the configured provider via
+`data.aws_region.current`. Set `aws_region` explicitly only if you want a
+different region than the provider.
+
 For the EC2 module, replace `argus-agent-fargate` with `argus-agent-ec2` and follow `examples/ec2-basic`.
 
-## CloudFormation — one-click EC2
+## CloudFormation - one-click EC2
 
 Open this URL in a browser logged into the target AWS account:
 
@@ -62,13 +89,13 @@ Open this URL in a browser logged into the target AWS account:
 https://console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/quickcreate?templateURL=https%3A%2F%2Fargusdspm.com%2Fdownloads%2Fcfn%2Fargus-managed-v1.yml&stackName=argus-agent&param_Region=us-east-1
 ```
 
-The console form will pre-fill stack name and region. **Paste your enrollment token into the `EnrollmentToken` field manually** — it is deliberately not included in the URL to keep the secret out of browser history. Click **Create stack**.
+The console form will pre-fill stack name and region. **Paste your enrollment token into the `EnrollmentToken` field manually** - it is deliberately not included in the URL to keep the secret out of browser history. Click **Create stack**.
 
 You can also download `cloudformation/argus-agent-ec2.yml` from this repo and upload it directly via the CloudFormation console.
 
 ## What gets deployed
 
-- **EC2 / Fargate**: agent container running with a least-privilege task role (S3 read, RDS describe, etc. — only the datastore types you opt in to). The enrollment token sits encrypted in SSM Parameter Store; the agent reads it once at boot and exchanges it for a per-container API key via `/api/v1/agents/bootstrap`.
+- **EC2 / Fargate**: agent container running with a least-privilege task role (S3 read, RDS describe, etc. - only the datastore types you opt in to). The enrollment token sits encrypted in SSM Parameter Store; the agent reads it once at boot and exchanges it for a per-container API key via `/api/v1/agents/bootstrap`.
 - **Networking**: outbound HTTPS to `api.argusdspm.com` only. No inbound ports.
 - **Secrets**: only the enrollment token is provisioned by Terraform. The post-exchange per-container API key lives inside the running container and is not persisted by the IaC.
 
@@ -104,4 +131,4 @@ See `CHANGELOG.md` for what changed in each release and `COMPATIBILITY.md` for t
 
 ## License
 
-MIT — see `LICENSE`.
+MIT - see `LICENSE`.

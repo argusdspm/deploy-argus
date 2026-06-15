@@ -1,4 +1,4 @@
-# Argus Agent Fargate Module — Security (security group + IAM)
+# Argus Agent Fargate Module - Security (security group + IAM)
 
 # -----------------------------------------------------------------------------
 # Security group
@@ -6,7 +6,7 @@
 
 resource "aws_security_group" "argus_agent_sg" {
   name        = "${local.name_prefix}-sg"
-  description = "Argus agent — outbound HTTPS only."
+  description = "Argus agent - outbound HTTPS only."
   vpc_id      = var.vpc_id
 
   egress {
@@ -64,7 +64,7 @@ resource "aws_security_group_rule" "redshift_egress" {
 }
 
 # -----------------------------------------------------------------------------
-# Execution role — used by Fargate to pull image, fetch SSM secrets, write logs
+# Execution role - used by Fargate to pull image, fetch SSM secrets, write logs
 # -----------------------------------------------------------------------------
 
 resource "aws_iam_role" "execution" {
@@ -110,7 +110,7 @@ resource "aws_iam_role_policy_attachment" "execution_ssm" {
 }
 
 # -----------------------------------------------------------------------------
-# Task role — credentials the agent process runs under (datastore scanning)
+# Task role - credentials the agent process runs under (datastore scanning)
 # -----------------------------------------------------------------------------
 
 resource "aws_iam_role" "task" {
@@ -349,7 +349,7 @@ resource "aws_iam_role_policy_attachment" "task_cloudwatch" {
 }
 
 # -----------------------------------------------------------------------------
-# Redshift Serverless — discovery + temporary credentials
+# Redshift Serverless - discovery + temporary credentials
 # -----------------------------------------------------------------------------
 
 resource "aws_iam_policy" "task_redshift_serverless" {
@@ -389,7 +389,7 @@ resource "aws_iam_role_policy_attachment" "task_redshift_serverless" {
 }
 
 # -----------------------------------------------------------------------------
-# IAM discovery — §11 Identity & Access in the Argus UI
+# IAM discovery - §11 Identity & Access in the Argus UI
 # -----------------------------------------------------------------------------
 
 resource "aws_iam_policy" "task_iam_discovery" {
@@ -443,7 +443,7 @@ resource "aws_iam_role_policy_attachment" "task_iam_discovery" {
 }
 
 # -----------------------------------------------------------------------------
-# CloudWatch read — bucket-size / object-count estimation
+# CloudWatch read - bucket-size / object-count estimation
 # -----------------------------------------------------------------------------
 
 resource "aws_iam_policy" "task_cloudwatch_read" {
@@ -473,7 +473,7 @@ resource "aws_iam_role_policy_attachment" "task_cloudwatch_read" {
 }
 
 # -----------------------------------------------------------------------------
-# Remediation — S3 + IAM write
+# Remediation - S3 + IAM write
 # -----------------------------------------------------------------------------
 
 resource "aws_iam_policy" "task_s3_remediation" {
@@ -488,7 +488,7 @@ resource "aws_iam_policy" "task_s3_remediation" {
         Sid    = "S3RemediationActions"
         Effect = "Allow"
         # Note: boto3 delete_public_access_block / delete_bucket_encryption
-        # authorize against the s3:Put* actions below — there is no separate
+        # authorize against the s3:Put* actions below - there is no separate
         # s3:Delete* IAM action for those two operations.
         Action = [
           "s3:PutBucketPublicAccessBlock",

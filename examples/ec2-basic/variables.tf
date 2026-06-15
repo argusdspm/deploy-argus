@@ -15,7 +15,7 @@ variable "enrollment_token" {
   sensitive   = true
   validation {
     condition     = length(var.enrollment_token) >= 16
-    error_message = "enrollment_token looks too short — copy the full token from the dashboard."
+    error_message = "enrollment_token looks too short - copy the full token from the dashboard."
   }
 }
 

@@ -1,4 +1,4 @@
-# Argus Agent — IAM Permissions Reference
+# Argus Agent - IAM Permissions Reference
 
 **Status:** Canonical inventory of every AWS action the Argus DSPM agent
 performs in production. The CloudFormation template + Terraform modules in
@@ -12,15 +12,15 @@ capability, update both this doc and the IaC.
 ## How to read this doc
 
 Each table lists:
-- **Action** — the AWS API action name (the `Service:OperationName` form
+- **Action** - the AWS API action name (the `Service:OperationName` form
   used in an IAM policy `Action` field).
-- **Used by** — the agent code path that needs it.
-- **Where it lives in IaC** — `cf` (CloudFormation), `tf-ec2`
+- **Used by** - the agent code path that needs it.
+- **Where it lives in IaC** - `cf` (CloudFormation), `tf-ec2`
   (`modules/argus-agent-ec2/security.tf`), `tf-fargate`
   (`modules/argus-agent-fargate/security.tf`), or `MISSING` if the action is
   required by product code but absent from one or more IaC artifacts.
 
-The "MISSING" tag is the actionable signal — every row marked MISSING needs
+The "MISSING" tag is the actionable signal - every row marked MISSING needs
 a corresponding patch in the IaC before the next release.
 
 ---
@@ -38,7 +38,7 @@ free.
 
 ---
 
-## S3 — discovery + scan (read-only)
+## S3 - discovery + scan (read-only)
 
 | Action | Used by | IaC |
 |---|---|---|
@@ -46,7 +46,7 @@ free.
 | `s3:GetBucketLocation` | resolve a bucket's region before any per-bucket call | cf, tf-ec2, tf-fargate ✓ |
 | `s3:GetBucketTagging` | bucket-level tags, used for owner detection | cf, tf-ec2, tf-fargate ✓ |
 | `s3:GetBucketVersioning` | versioning status surfaced in datastore metadata | cf, tf-ec2, tf-fargate ✓ |
-| `s3:ListBucket` | object enumeration (`list_objects_v2`) — drives sampling | cf, tf-ec2, tf-fargate ✓ |
+| `s3:ListBucket` | object enumeration (`list_objects_v2`) - drives sampling | cf, tf-ec2, tf-fargate ✓ |
 | `s3:GetObject` | content sampling for sensitive-data detection | cf, tf-ec2, tf-fargate ✓ |
 | `s3:GetObjectVersion` | versioned-object sampling | cf, tf-ec2, tf-fargate ✓ |
 | `s3:GetObjectTagging` | object-level tags propagated to findings | cf, tf-ec2, tf-fargate ✓ |
@@ -58,7 +58,7 @@ free.
 
 > **Why this matters:** without `GetBucketAcl`/`GetBucketPolicy`/`GetBucketPolicyStatus`/`GetBucketPublicAccessBlock`,
 > every public-bucket detection call returns `AccessDenied` and the agent
-> reports `is_public=false` for every bucket — silently failing the
+> reports `is_public=false` for every bucket - silently failing the
 > headline "publicly-exposed sensitive data" finding. The QA pass that
 > drove this audit caught the gap via a fixture bucket made public via
 > bucket-policy (not ACL); the agent reported it private. After fix
@@ -67,22 +67,22 @@ free.
 
 ---
 
-## S3 — remediation (write)
+## S3 - remediation (write)
 
 | Action | Used by | IaC |
 |---|---|---|
 | `s3:PutBucketPublicAccessBlock` | `block_public_access` remediation + rollback (boto3 `delete_public_access_block` authorizes against this Put action) | **MISSING everywhere** |
 | `s3:PutEncryptionConfiguration` | `enable_encryption` remediation + rollback (boto3 `delete_bucket_encryption` authorizes against this Put action) | **MISSING everywhere** |
-| `s3:PutBucketVersioning` | `enable_versioning` remediation step (also covers rollback — versioning state mutates in place) | **MISSING everywhere** |
+| `s3:PutBucketVersioning` | `enable_versioning` remediation step (also covers rollback - versioning state mutates in place) | **MISSING everywhere** |
 | `s3:PutBucketPolicy` | `restrict_bucket_policy` remediation step (write the stricter policy) | **MISSING everywhere** |
 | `s3:DeleteBucketPolicy` | `restrict_bucket_policy` (when stricter policy is empty) | **MISSING everywhere** |
 
 The canonical reference for what each remediation action needs is
-`argus_agent/remediation/providers/aws_provider.py:39 — ACTION_IAM_PERMISSIONS`.
+`argus_agent/remediation/providers/aws_provider.py:39 - ACTION_IAM_PERMISSIONS`.
 
 ---
 
-## IAM — discovery (read)
+## IAM - discovery (read)
 
 | Action | Used by | IaC |
 |---|---|---|
@@ -93,7 +93,7 @@ The canonical reference for what each remediation action needs is
 | `iam:GetAccessKeyLastUsed` | `last_activity_at` derivation, `unused_access_key` recommendation | **MISSING everywhere** |
 | `iam:ListUserTags` | owner-email + custom-tag surfaces | **MISSING everywhere** |
 | `iam:ListUserPolicies` | inline-policy names per user | **MISSING everywhere** |
-| `iam:GetUserPolicy` | inline-policy DOCUMENTS — needed by B-S11-1 wildcard detector | **MISSING everywhere** |
+| `iam:GetUserPolicy` | inline-policy DOCUMENTS - needed by B-S11-1 wildcard detector | **MISSING everywhere** |
 | `iam:ListAttachedUserPolicies` | attached policy ARNs per user | **MISSING everywhere** |
 | `iam:ListRoles` | discover IAM roles | **MISSING everywhere** |
 | `iam:GetRole` | per-role details + trust policy | **MISSING everywhere** |
@@ -105,7 +105,7 @@ The canonical reference for what each remediation action needs is
 | `iam:GetGroupPolicy` | inline-policy DOCUMENTS | **MISSING everywhere** |
 | `iam:ListAttachedGroupPolicies` | attached policy ARNs per group | **MISSING everywhere** |
 | `iam:GetPolicy` | customer-managed policy metadata (default version ID) | **MISSING everywhere** |
-| `iam:GetPolicyVersion` | customer-managed policy DOCUMENT — required by B-S11-1 over-privilege detector | **MISSING everywhere** |
+| `iam:GetPolicyVersion` | customer-managed policy DOCUMENT - required by B-S11-1 over-privilege detector | **MISSING everywhere** |
 | `iam:GenerateCredentialReport` | trigger fresh credential report | **MISSING everywhere** |
 | `iam:GetCredentialReport` | password_age, password_last_used, mfa_active per user | **MISSING everywhere** |
 
@@ -117,7 +117,7 @@ The canonical reference for what each remediation action needs is
 
 ---
 
-## IAM — remediation + preflight (write + simulate)
+## IAM - remediation + preflight (write + simulate)
 
 | Action | Used by | IaC |
 |---|---|---|
@@ -140,7 +140,7 @@ The canonical reference for what each remediation action needs is
 | `rds-db:connect` | IAM-DB-auth on RDS scan path | cf, tf-ec2, tf-fargate ✓ |
 
 `rds:GenerateDBAuthToken` is a client-side token-generation call (not an
-AWS API action) — no IAM permission required beyond `rds-db:connect`.
+AWS API action) - no IAM permission required beyond `rds-db:connect`.
 
 ---
 
@@ -193,7 +193,7 @@ Secrets Manager coverage is complete.
 ## KMS
 
 The agent does **not** call any KMS action directly. SSE-KMS object reads
-are transparent — `s3:GetObject` triggers the KMS decrypt under the hood,
+are transparent - `s3:GetObject` triggers the KMS decrypt under the hood,
 and the customer's KMS-key resource policy must grant the agent's role
 `kms:Decrypt` separately. **This is a customer responsibility**, documented
 in the README: "If your buckets use SSE-KMS, attach the agent role as a
@@ -296,13 +296,13 @@ All 6 remediation/preflight write actions.
 6. Trigger one remediation workflow against the public bucket → confirm
    no `AccessDenied` in `execution_logs`, dry_run path completes.
 7. `aws iam simulate-principal-policy` from outside, asserting each new
-   action is allowed — catches policy regressions in future bumps.
+   action is allowed - catches policy regressions in future bumps.
 
 ---
 
 ## Change history
 
-- 2026-05-13 — v0.7.6 prep: initial canonical inventory + gap analysis
+- 2026-05-13 - v0.7.6 prep: initial canonical inventory + gap analysis
   driven by the QA pass that landed fixes B-S5.3-1 / B-S11-1 / B-S12-1
   in the Argus repo. Cross-reference:
   `argus/.claude/code-reviews/2026-05-09-qa-sec5-7-findings.md`.

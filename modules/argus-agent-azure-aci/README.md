@@ -1,6 +1,6 @@
 # argus-agent-azure-aci (PREVIEW)
 
-> **PREVIEW STATUS** — This module works against `api.argusdspm.com` but is not yet wired into the Argus dashboard's Deploy Agent flow. Variable interface, defaults, and outputs may change in minor breaking ways before the `v1.x` stable line. Pin `?ref=v0.7.6` in your `source` to insulate yourself from changes.
+> **PREVIEW STATUS** - This module works against `api.argusdspm.com` but is not yet wired into the Argus dashboard's Deploy Agent flow. Variable interface, defaults, and outputs may change in minor breaking ways before the `v1.x` stable line. Pin `?ref=v0.7.6` in your `source` to insulate yourself from changes.
 
 Terraform module that deploys the Argus DSPM agent on Azure Container Instances. Resource and variable names mirror the AWS modules so operators can move between clouds without re-learning the contract.
 
@@ -33,7 +33,7 @@ terraform apply -var enrollment_token="<your-enrollment-token>"
 
 ## State file warning
 
-The Azure Service Principal's client secret is written to the Terraform state in plaintext (standard behaviour for any Terraform provider that manages credentials). Use a remote backend with encryption at rest — never commit the state file to git, and avoid local `terraform.tfstate` for production:
+The Azure Service Principal's client secret is written to the Terraform state in plaintext (standard behaviour for any Terraform provider that manages credentials). Use a remote backend with encryption at rest - never commit the state file to git, and avoid local `terraform.tfstate` for production:
 
 ```hcl
 terraform {

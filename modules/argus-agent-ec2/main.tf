@@ -1,4 +1,4 @@
-# Argus Agent EC2 Module — Main configuration
+# Argus Agent EC2 Module - Main configuration
 
 terraform {
   required_version = ">= 1.5"
@@ -70,20 +70,20 @@ locals {
     Project     = "argus-dspm"
   }, var.additional_tags)
 
-  # User-data template — the variable map MUST match the placeholders
+  # User-data template - the variable map MUST match the placeholders
   # inside user_data.sh exactly. See user_data.sh header for the contract.
   user_data = base64encode(templatefile("${path.module}/user_data.sh", {
     argus_backend_url      = var.argus_backend_url
     aws_region             = var.aws_region
     enrollment_token_param = aws_ssm_parameter.enrollment_token.name
-    aws_role_arn           = "" # same-account model — agent uses its instance profile
+    aws_role_arn           = "" # same-account model - agent uses its instance profile
     aws_external_id        = "" # not used in same-account model
     agent_image            = var.agent_container_image
   }))
 }
 
 # -----------------------------------------------------------------------------
-# Network — created only when caller didn't supply vpc_id / subnet_id
+# Network - created only when caller didn't supply vpc_id / subnet_id
 # -----------------------------------------------------------------------------
 
 resource "aws_vpc" "argus_vpc" {
@@ -157,7 +157,7 @@ resource "aws_cloudwatch_log_group" "argus_agent_logs" {
 }
 
 # -----------------------------------------------------------------------------
-# Enrollment token — stored in SSM Parameter Store as SecureString. The
+# Enrollment token - stored in SSM Parameter Store as SecureString. The
 # agent's user_data reads it once at startup and exchanges it for a
 # per-container API key via /api/v1/agents/bootstrap. The token itself
 # stays in SSM so subsequent host reboots can re-bootstrap if needed.

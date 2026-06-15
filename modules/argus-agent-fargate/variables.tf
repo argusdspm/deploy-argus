@@ -1,4 +1,4 @@
-# Argus Agent Fargate Module — Variables
+# Argus Agent Fargate Module - Variables
 #
 # Self-contained: provisions the ECS cluster, IAM, log group, and SSM
 # enrollment-token secret. Customers provide vpc_id + subnet_ids; the
@@ -23,7 +23,7 @@ variable "enrollment_token" {
   sensitive   = true
   validation {
     condition     = length(var.enrollment_token) >= 16
-    error_message = "enrollment_token looks too short — copy the full token from the dashboard."
+    error_message = "enrollment_token looks too short - copy the full token from the dashboard."
   }
 }
 
@@ -69,8 +69,8 @@ variable "agent_image_tag" {
 
 variable "aws_region" {
   type        = string
-  description = "AWS region the ECS cluster runs in."
-  default     = "us-east-1"
+  description = "AWS region the ECS cluster runs in. Optional. When null (default), the module reads the region from the configured AWS provider via `data.aws_region.current`. Override only if you need to pin a different region than the provider."
+  default     = null
 }
 
 # -----------------------------------------------------------------------------
@@ -85,13 +85,13 @@ variable "cpu" {
 
 variable "memory" {
   type        = number
-  description = "Per-task memory MiB (Fargate). Must be compatible with cpu — see AWS Fargate pricing/sizing."
+  description = "Per-task memory MiB (Fargate). Must be compatible with cpu - see AWS Fargate pricing/sizing."
   default     = 2048
 }
 
 variable "concurrent_jobs" {
   type        = number
-  description = "AGENT_CONCURRENT_JOBS env value — bounded ThreadPoolExecutor size in the agent."
+  description = "AGENT_CONCURRENT_JOBS env value - bounded ThreadPoolExecutor size in the agent."
   default     = 4
 }
 
@@ -129,7 +129,7 @@ variable "log_retention_days" {
 
 variable "environment" {
   type        = string
-  description = "Environment label (dev/staging/prod) — surfaces in tags."
+  description = "Environment label (dev/staging/prod) - surfaces in tags."
   default     = "prod"
   validation {
     condition     = contains(["dev", "staging", "prod"], var.environment)
@@ -179,7 +179,7 @@ variable "enable_redshift_scanning" {
 
 variable "enable_iam_discovery" {
   type        = bool
-  description = "Enable IAM discovery — read across users, roles, groups, attached + inline policy documents, MFA devices, access keys, credential reports. Required for §11 Identity & Access in the Argus UI."
+  description = "Enable IAM discovery - read across users, roles, groups, attached + inline policy documents, MFA devices, access keys, credential reports. Required for §11 Identity & Access in the Argus UI."
   default     = false
 }
 
@@ -198,5 +198,11 @@ variable "db_secrets_arn_pattern" {
 variable "enable_database_egress" {
   type        = bool
   description = "Add security-group egress rules for database ports (3306 / 5432 / 5439)."
+  default     = false
+}
+
+variable "assign_public_ip" {
+  type        = bool
+  description = "Whether to assign a public IP to the Fargate task ENI. Set to true when running in a public subnet without a NAT gateway (default-VPC style). Set to false when running in a private subnet that reaches the internet via NAT."
   default     = false
 }

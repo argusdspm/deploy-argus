@@ -30,7 +30,7 @@ resource "azurerm_monitor_action_group" "argus" {
   tags = local.common_tags
 }
 
-# Container restart alert — fires when the ACI restart counter ticks up
+# Container restart alert - fires when the ACI restart counter ticks up
 # more than 3 times in 15 minutes. That threshold filters out single
 # transient failures (Azure pulls the image, a bad image pull fails once)
 # but catches crashloop scenarios within 5 minutes of onset.
@@ -38,7 +38,7 @@ resource "azurerm_monitor_metric_alert" "container_restart" {
   name                = "alert-restart-${local.name_prefix}"
   resource_group_name = azurerm_resource_group.argus.name
   scopes              = [azurerm_container_group.argus_agent.id]
-  description         = "Argus agent container has restarted repeatedly — check Log Analytics for the root cause."
+  description         = "Argus agent container has restarted repeatedly - check Log Analytics for the root cause."
   frequency           = "PT5M"
   window_size         = "PT15M"
   severity            = 2

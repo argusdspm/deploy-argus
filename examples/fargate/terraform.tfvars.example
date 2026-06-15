@@ -1,5 +1,5 @@
 # Copy this file to terraform.tfvars and fill in your values.
-# Never commit terraform.tfvars to git — it contains your enrollment token.
+# Never commit terraform.tfvars to git - it contains your enrollment token.
 
 customer_name     = "acme"
 enrollment_token  = "<paste-from-argus-dashboard>"
@@ -7,7 +7,7 @@ argus_backend_url = "https://api.argusdspm.com"
 
 aws_region = "us-east-1"
 
-# Provide your existing VPC + subnets. Private subnets recommended —
+# Provide your existing VPC + subnets. Private subnets recommended -
 # the agent only needs outbound HTTPS.
 vpc_id     = "vpc-xxxxxxxx"
 subnet_ids = ["subnet-aaaaaaaa", "subnet-bbbbbbbb"]

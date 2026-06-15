@@ -1,7 +1,7 @@
 # Outputs for the Argus Azure ACI module.
 #
 # The sensitive `agent_connection_info` bundle is the one operators
-# actually paste into the Argus dashboard — keeping it as one output
+# actually paste into the Argus dashboard - keeping it as one output
 # instead of five means they can't accidentally copy a partial set.
 
 output "resource_group_name" {
@@ -30,7 +30,7 @@ output "client_id" {
 }
 
 output "service_principal_id" {
-  description = "Object ID of the Service Principal. Not the same as client_id — use this when granting additional Azure RBAC roles."
+  description = "Object ID of the Service Principal. Not the same as client_id - use this when granting additional Azure RBAC roles."
   value       = local.service_principal_id
 }
 
@@ -39,7 +39,7 @@ output "custom_role_id" {
   value       = azurerm_role_definition.argus_scanner.role_definition_resource_id
 }
 
-# Plaintext secret — only exposed when we created the Service Principal
+# Plaintext secret - only exposed when we created the Service Principal
 # ourselves. When binding to an existing SP the secret was supplied by
 # the caller and they already have it.
 output "client_secret" {
@@ -50,7 +50,7 @@ output "client_secret" {
 
 # Bundled payload for operators to register the agent in Argus.
 output "agent_connection_info" {
-  description = "Everything the Argus UI's 'Add Cloud Account' flow needs. Treat as sensitive — contains the client secret."
+  description = "Everything the Argus UI's 'Add Cloud Account' flow needs. Treat as sensitive - contains the client secret."
   sensitive   = true
   value = {
     backend_url     = var.argus_backend_url

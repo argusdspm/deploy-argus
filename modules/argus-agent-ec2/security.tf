@@ -1,12 +1,12 @@
-# Argus Agent EC2 Module — Security (security group + IAM)
+# Argus Agent EC2 Module - Security (security group + IAM)
 
 # -----------------------------------------------------------------------------
-# Security group — outbound HTTPS for control plane + AWS APIs
+# Security group - outbound HTTPS for control plane + AWS APIs
 # -----------------------------------------------------------------------------
 
 resource "aws_security_group" "argus_agent_sg" {
   name        = "argus-agent-sg-${var.customer_name}"
-  description = "Argus agent — outbound HTTPS only (data sovereignty: no inbound from provider)."
+  description = "Argus agent - outbound HTTPS only (data sovereignty: no inbound from provider)."
   vpc_id      = local.vpc_id
 
   egress {
@@ -38,7 +38,7 @@ resource "aws_security_group" "argus_agent_sg" {
     to_port     = 8080
     protocol    = "tcp"
     cidr_blocks = [var.vpc_id != "" ? data.aws_vpc.selected[0].cidr_block : aws_vpc.argus_vpc[0].cidr_block]
-    description = "Agent health endpoint — internal VPC only."
+    description = "Agent health endpoint - internal VPC only."
   }
 
   # SSH via EC2 Instance Connect (managed AWS prefix list)
@@ -57,7 +57,7 @@ resource "aws_security_group" "argus_agent_sg" {
       to_port     = 22
       protocol    = "tcp"
       cidr_blocks = var.allowed_cidr_blocks
-      description = "SSH for debugging — remove in production."
+      description = "SSH for debugging - remove in production."
     }
   }
 
@@ -139,7 +139,7 @@ resource "aws_iam_instance_profile" "argus_agent_profile" {
 }
 
 # -----------------------------------------------------------------------------
-# Bootstrap permissions — read enrollment token from SSM
+# Bootstrap permissions - read enrollment token from SSM
 # -----------------------------------------------------------------------------
 
 resource "aws_iam_policy" "argus_agent_ssm_policy" {
@@ -236,7 +236,7 @@ resource "aws_iam_role_policy_attachment" "argus_agent_ec2_attachment" {
 }
 
 # -----------------------------------------------------------------------------
-# Secrets Manager — only for customer-side DB credentials (optional).
+# Secrets Manager - only for customer-side DB credentials (optional).
 # Note: the agent's own per-container API key (post-bootstrap) is held
 # inside the container; deploy-argus does not pre-stage it.
 # -----------------------------------------------------------------------------
@@ -473,7 +473,7 @@ resource "aws_iam_role_policy_attachment" "argus_agent_redshift_attachment" {
 }
 
 # -----------------------------------------------------------------------------
-# Redshift Serverless — discovery + temporary credentials
+# Redshift Serverless - discovery + temporary credentials
 # Provisioned Redshift is covered above; Serverless workgroups use a
 # separate IAM namespace (redshift-serverless:*).
 # -----------------------------------------------------------------------------
@@ -517,7 +517,7 @@ resource "aws_iam_role_policy_attachment" "argus_agent_redshift_serverless_attac
 }
 
 # -----------------------------------------------------------------------------
-# IAM discovery — §11 Identity & Access in the Argus UI
+# IAM discovery - §11 Identity & Access in the Argus UI
 # Read-only. The GetPolicyVersion + Get{User,Role,Group}Policy actions
 # are required by the wildcard-inline over-privilege detector; without
 # them Argus only matches AWS-managed admin ARNs and misses custom
@@ -577,7 +577,7 @@ resource "aws_iam_role_policy_attachment" "argus_agent_iam_discovery_attachment"
 }
 
 # -----------------------------------------------------------------------------
-# CloudWatch read — bucket-size / object-count estimation
+# CloudWatch read - bucket-size / object-count estimation
 # Without this, S3 discovery falls back to a full paginated list to
 # compute size, which is ~30× slower on multi-thousand-object buckets.
 # -----------------------------------------------------------------------------
@@ -611,7 +611,7 @@ resource "aws_iam_role_policy_attachment" "argus_agent_cloudwatch_read_attachmen
 }
 
 # -----------------------------------------------------------------------------
-# Remediation — write actions across S3 + IAM
+# Remediation - write actions across S3 + IAM
 # Enabled only when var.enable_remediation = true AND Tenant Settings →
 # Remediation is enabled at the application layer (both gates required).
 # -----------------------------------------------------------------------------
@@ -628,7 +628,7 @@ resource "aws_iam_policy" "argus_agent_s3_remediation_policy" {
         Sid    = "S3RemediationActions"
         Effect = "Allow"
         # Note: boto3 delete_public_access_block / delete_bucket_encryption
-        # authorize against the s3:Put* actions below — there is no separate
+        # authorize against the s3:Put* actions below - there is no separate
         # s3:Delete* IAM action for those two operations.
         Action = [
           "s3:PutBucketPublicAccessBlock",

@@ -5,7 +5,7 @@ Which version of `deploy-argus` works with which Argus agent image.
 | deploy-argus | Argus agent image | Argus backend | Notes |
 |---|---|---|---|
 | `v0.7.5` | `ghcr.io/argusdspm/argus-agent:stable` (post-Wave 4 Track J) | `https://api.argusdspm.com` | Initial public release. Agent must support `ARGUS_BACKEND_URL` env var; older images that only know `SAAS_API_URL` are not compatible. |
-| `v0.7.6` | `ghcr.io/argusdspm/argus-agent:stable` (same as v0.7.5) | `https://api.argusdspm.com` | deploy-argus-only bump. Plugs the IAM permission gaps the agent has always needed (S3 public-bucket detection, IAM discovery, Redshift Serverless, CloudWatch read, remediation write). Two new opt-in vars: `enable_iam_discovery`, `enable_remediation`. Upgrade is `terraform get -update && terraform apply` — no resource replacement. |
+| `v0.7.6` | `ghcr.io/argusdspm/argus-agent:stable` (same as v0.7.5) | `https://api.argusdspm.com` | deploy-argus-only bump. Plugs the IAM permission gaps the agent has always needed (S3 public-bucket detection, IAM discovery, Redshift Serverless, CloudWatch read, remediation write). Two new opt-in vars: `enable_iam_discovery`, `enable_remediation`. Upgrade is `terraform get -update && terraform apply` - no resource replacement. |
 
 ## Pinning
 
@@ -26,4 +26,4 @@ Customers pinned to a specific tag are not affected by changes on `main` or in l
 
 ## Argus image tags
 
-The agent image follows its own release schedule in the main `argus` repo. The `:stable` tag tracks the latest production-supported release; `:vX.Y.Z` tags are immutable. For most customers, `:stable` is the right choice — pin only if you have a specific reason.
+The agent image follows its own release schedule in the main `argus` repo. The `:stable` tag tracks the latest production-supported release; `:vX.Y.Z` tags are immutable. For most customers, `:stable` is the right choice - pin only if you have a specific reason.

@@ -1,4 +1,4 @@
-# Argus Agent EC2 Module — Variables
+# Argus Agent EC2 Module - Variables
 #
 # v0.7.5 interface: customer provides an enrollment_token (from the Argus
 # dashboard); the agent exchanges it on first start for a per-container
@@ -23,7 +23,7 @@ variable "enrollment_token" {
   sensitive   = true
   validation {
     condition     = length(var.enrollment_token) >= 16
-    error_message = "enrollment_token looks too short — copy the full token from the dashboard."
+    error_message = "enrollment_token looks too short - copy the full token from the dashboard."
   }
 }
 
@@ -86,7 +86,7 @@ variable "subnet_id" {
 }
 
 variable "allowed_cidr_blocks" {
-  description = "CIDR blocks allowed for SSH access (debugging only — empty in production)."
+  description = "CIDR blocks allowed for SSH access (debugging only - empty in production)."
   type        = list(string)
   default     = []
 }

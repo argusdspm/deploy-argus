@@ -1,10 +1,10 @@
-# Argus Agent Fargate Module — Main configuration.
+# Argus Agent Fargate Module - Main configuration.
 #
 # Two ECS services:
-#   * argus-agent-baseline — desired_count = 1, never autoscaled. Stable
+#   * argus-agent-baseline - desired_count = 1, never autoscaled. Stable
 #     anchor; emits the argus_pending_jobs CloudWatch metric so the burst
 #     autoscaler always has a signal even at scale-to-zero.
-#   * argus-agent-burst    — desired_count = auto, min=0, max=N. Scales
+#   * argus-agent-burst    - desired_count = auto, min=0, max=N. Scales
 #     up on pending-jobs depth, drops to 0 when idle.
 #
 # Both share one enrollment token (per cloud account), stored once as an
@@ -14,7 +14,16 @@
 # Locals
 # -----------------------------------------------------------------------------
 
+# Resolve the AWS region from the provider instead of forcing the caller to
+# pass it. var.aws_region is still honored if set (back-compat), but defaults
+# to the configured provider region. Eliminates the "awslogs-region mismatch"
+# class of bug where the module's default us-east-1 silently overrides the
+# provider's actual region.
+data "aws_region" "current" {}
+
 locals {
+  aws_region = coalesce(var.aws_region, data.aws_region.current.name)
+
   name_prefix = "argus-agent-${var.customer_name}"
   image_uri   = "${var.agent_image_registry}:${var.agent_image_tag}"
 
@@ -79,7 +88,7 @@ resource "aws_cloudwatch_log_group" "argus_agent_logs" {
 
 resource "aws_ssm_parameter" "enrollment_token" {
   name        = "/${local.name_prefix}/enrollment-token"
-  description = "Argus enrollment token — exchanged once per task for a per-container API key."
+  description = "Argus enrollment token - exchanged once per task for a per-container API key."
   type        = "SecureString"
   value       = var.enrollment_token
   overwrite   = true
@@ -117,7 +126,7 @@ resource "aws_ecs_task_definition" "baseline" {
         logDriver = "awslogs"
         options = {
           awslogs-group         = aws_cloudwatch_log_group.argus_agent_logs.name
-          awslogs-region        = var.aws_region
+          awslogs-region        = local.aws_region
           awslogs-stream-prefix = "baseline"
         }
       }
@@ -151,7 +160,7 @@ resource "aws_ecs_task_definition" "burst" {
         logDriver = "awslogs"
         options = {
           awslogs-group         = aws_cloudwatch_log_group.argus_agent_logs.name
-          awslogs-region        = var.aws_region
+          awslogs-region        = local.aws_region
           awslogs-stream-prefix = "burst"
         }
       }
@@ -175,7 +184,7 @@ resource "aws_ecs_service" "baseline" {
   network_configuration {
     subnets          = var.subnet_ids
     security_groups  = [aws_security_group.argus_agent_sg.id]
-    assign_public_ip = false
+    assign_public_ip = var.assign_public_ip
   }
 
   tags = local.common_tags
@@ -195,7 +204,7 @@ resource "aws_ecs_service" "burst" {
   network_configuration {
     subnets          = var.subnet_ids
     security_groups  = [aws_security_group.argus_agent_sg.id]
-    assign_public_ip = false
+    assign_public_ip = var.assign_public_ip
   }
 
   tags = local.common_tags
@@ -206,7 +215,7 @@ resource "aws_ecs_service" "burst" {
 }
 
 # -----------------------------------------------------------------------------
-# Burst autoscaler — tracks the agent-emitted argus_pending_jobs metric
+# Burst autoscaler - tracks the agent-emitted argus_pending_jobs metric
 # -----------------------------------------------------------------------------
 
 resource "aws_appautoscaling_target" "burst" {

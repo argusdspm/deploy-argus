@@ -1,4 +1,4 @@
-# Argus Agent EC2 Module — Outputs
+# Argus Agent EC2 Module - Outputs
 
 output "agent_instance_id" {
   description = "EC2 instance ID of the deployed agent."

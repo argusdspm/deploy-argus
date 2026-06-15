@@ -13,7 +13,7 @@ Minimal Terraform configuration that deploys the Argus agent on a single EC2 ins
 
 ```bash
 cp terraform.tfvars.example terraform.tfvars
-# Edit terraform.tfvars — set customer_name, vpc/subnet, etc.
+# Edit terraform.tfvars - set customer_name, vpc/subnet, etc.
 
 terraform init
 terraform apply -var enrollment_token="<your-enrollment-token>"

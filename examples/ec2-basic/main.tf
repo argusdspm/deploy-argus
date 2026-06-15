@@ -1,4 +1,4 @@
-# Argus Agent — basic EC2 deployment example.
+# Argus Agent - basic EC2 deployment example.
 
 provider "aws" {
   region = var.aws_region

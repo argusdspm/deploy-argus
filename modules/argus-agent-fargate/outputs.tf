@@ -1,4 +1,4 @@
-# Argus Agent Fargate Module — Outputs
+# Argus Agent Fargate Module - Outputs
 
 output "cluster_name" {
   description = "Name of the ECS cluster created for the agent."
@@ -69,7 +69,7 @@ output "deployment_info" {
   description = "Summary of the deployment for handoff to the Argus dashboard."
   value = {
     customer    = var.customer_name
-    region      = var.aws_region
+    region      = local.aws_region
     environment = var.environment
     cpu         = var.cpu
     memory      = var.memory

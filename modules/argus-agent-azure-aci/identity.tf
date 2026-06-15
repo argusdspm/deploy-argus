@@ -4,7 +4,7 @@
 # to an already-provisioned identity (typical when a central identity team
 # owns Azure AD object creation). Otherwise we own the full lifecycle.
 #
-# The scanner role is always ours — we don't reuse Azure built-in roles
+# The scanner role is always ours - we don't reuse Azure built-in roles
 # because they grant far more than Argus needs (Storage Blob Data Reader
 # alone would also permit generated-SAS downloads, etc).
 
@@ -14,7 +14,7 @@ resource "azuread_application" "argus" {
   count        = local.use_existing_sp ? 0 : 1
   display_name = "Argus DSPM Scanner - ${var.customer_name}"
 
-  # Single-tenant app — the agent always calls Azure management with the
+  # Single-tenant app - the agent always calls Azure management with the
   # customer's own tenant_id, so multi-tenant isn't a feature we need.
   sign_in_audience = "AzureADMyOrg"
 }
@@ -34,7 +34,7 @@ resource "azuread_service_principal" "argus" {
 #
 # We use time_rotating instead of timeadd(timestamp(), ...) to drive the
 # end_date. timeadd against timestamp() re-evaluates on every plan and
-# causes perpetual drift — Terraform sees a new end_date every run and
+# causes perpetual drift - Terraform sees a new end_date every run and
 # recreates the secret. time_rotating has a stable ID for the whole
 # rotation window, so plans are no-ops until the window actually
 # elapses, at which point the secret is rotated exactly once.
@@ -73,7 +73,7 @@ resource "azurerm_role_definition" "argus_scanner" {
       # Resource group + subscription introspection (connection test)
       "Microsoft.Resources/subscriptions/resourceGroups/read",
       # Storage account discovery + container enumeration.
-      # Deliberately NO listkeys/action here — the agent authenticates
+      # Deliberately NO listkeys/action here - the agent authenticates
       # to the Blob data plane using the Service Principal token, and
       # the data_actions entry below already grants the exact blob read
       # surface it needs. listkeys would also hand over every SAS
@@ -95,7 +95,7 @@ resource "azurerm_role_definition" "argus_scanner" {
     ]
 
     data_actions = [
-      # Blob data read — required for sensitive-data sampling.
+      # Blob data read - required for sensitive-data sampling.
       # Controlled by enable_blob_scanning via the resource-count below.
       "Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read",
     ]

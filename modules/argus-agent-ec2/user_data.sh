@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Argus DSPM agent — EC2 user_data bootstrap (Wave 4 Track J).
+# Argus DSPM agent - EC2 user_data bootstrap (Wave 4 Track J).
 #
 # Pulls the agent image from a public registry (no ECR auth needed),
 # wires the enrollment token from SSM Parameter Store, and starts
@@ -68,7 +68,7 @@ EOF
 systemctl daemon-reload
 systemctl enable --now argus-agent.service
 
-# Weekly image refresh — keeps the agent on the rolling `stable` tag
+# Weekly image refresh - keeps the agent on the rolling `stable` tag
 # without a redeploy. Customers who pinned a specific version override
 # `agent_image` in the Terraform module and the cron is harmless (the
 # tag won't move under them).

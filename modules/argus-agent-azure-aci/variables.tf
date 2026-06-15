@@ -1,7 +1,7 @@
 # Variables for the Argus Agent Azure ACI module.
 #
 # Kept intentionally parallel to terraform/modules/argus-agent-ec2/
-# variables.tf — anything that matches across clouds uses the same
+# variables.tf - anything that matches across clouds uses the same
 # variable name so operators running a multi-cloud deployment don't have
 # to translate between two dialects.
 
@@ -26,7 +26,7 @@ variable "enrollment_token" {
 
   validation {
     condition     = length(var.enrollment_token) >= 16
-    error_message = "enrollment_token looks too short — copy the full token from the dashboard."
+    error_message = "enrollment_token looks too short - copy the full token from the dashboard."
   }
 }
 
@@ -46,7 +46,7 @@ variable "argus_backend_url" {
 
   validation {
     condition     = can(regex("^https://", var.argus_backend_url))
-    error_message = "argus_backend_url must be https:// — the agent refuses to transmit results over plaintext."
+    error_message = "argus_backend_url must be https:// - the agent refuses to transmit results over plaintext."
   }
 }
 
@@ -185,7 +185,7 @@ variable "additional_tags" {
 # ---------------------------------------------------------------------------
 # Datastore scanning flags
 #
-# Disabled by default except Blob Storage — operators opt into DB scanning
+# Disabled by default except Blob Storage - operators opt into DB scanning
 # explicitly so an agent doesn't start pulling data out of Azure SQL /
 # Synapse until they've reviewed the permissions implications.
 # ---------------------------------------------------------------------------
