@@ -81,6 +81,144 @@ different region than the provider.
 
 For the EC2 module, replace `argus-agent-fargate` with `argus-agent-ec2` and follow `examples/ec2-basic`.
 
+## ECS task JSON - manual task definition
+
+For teams that manage ECS tasks directly (console, CDK, custom CLI) without
+Terraform. You bring an ECS cluster, two IAM roles, a security group, and an
+AWS Secrets Manager secret holding the enrollment token; the snippet is just
+the task definition itself.
+
+**1. Store the enrollment token in Secrets Manager:**
+
+```bash
+aws secretsmanager create-secret \
+  --name argus-agent/enrollment-token \
+  --secret-string "<paste-token-here>"
+```
+
+Note the returned `ARN` - the task definition references it.
+
+**2. Create two IAM roles:**
+
+- An **execution role** (used by ECS to read the secret + ship logs).
+- A **task role** (the agent process identity for datastore scan).
+
+Trust policy for both: `ecs-tasks.amazonaws.com`. Permissions are in the
+[IAM policy](#iam-policy) section below.
+
+**3. Task definition** (replace the four `<...>` placeholders):
+
+```json
+{
+  "family": "argus-agent",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512", "memory": "1024",
+  "executionRoleArn": "<EXEC_ROLE_ARN>",
+  "taskRoleArn": "<TASK_ROLE_ARN>",
+  "containerDefinitions": [{
+    "name": "argus-agent",
+    "image": "ghcr.io/argusdspm/argus-agent:stable",
+    "essential": true,
+    "environment": [
+      {"name": "ARGUS_BACKEND_URL", "value": "https://api.argusdspm.com"},
+      {"name": "CLOUD_PROVIDER", "value": "aws"},
+      {"name": "ENROLLMENT_POOL", "value": "baseline"}
+    ],
+    "secrets": [
+      {"name": "ENROLLMENT_TOKEN", "valueFrom": "<TOKEN_SECRET_ARN>"}
+    ],
+    "logConfiguration": {
+      "logDriver": "awslogs",
+      "options": {
+        "awslogs-group": "/ecs/argus-agent",
+        "awslogs-region": "<REGION>",
+        "awslogs-stream-prefix": "agent",
+        "awslogs-create-group": "true"
+      }
+    }
+  }]
+}
+```
+
+**4. Register + run:**
+
+```bash
+aws ecs register-task-definition --cli-input-json file://task.json
+aws ecs run-task \
+  --cluster <YOUR_CLUSTER> \
+  --task-definition argus-agent \
+  --launch-type FARGATE \
+  --network-configuration "awsvpcConfiguration={subnets=[<SUBNET>],securityGroups=[<SG>],assignPublicIp=ENABLED}"
+```
+
+> **Note:** the `awslogs-group` value, the secret ARN in `secrets[]`, and the
+> log-group ARN pattern in the execution role's IAM policy must all agree on
+> the same names. The task definition uses `awslogs-create-group: true` so the
+> log group does not need to exist before first run, but the execution role
+> must allow `logs:CreateLogGroup` on the matching ARN pattern.
+
+## IAM policy
+
+The DIY paths above need two separate IAM policies on two separate roles. Mixing
+them onto one role works but breaks least-privilege.
+
+**Attach to the EXECUTION role** (alongside AWS-managed
+`AmazonECSTaskExecutionRolePolicy`):
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ReadEnrollmentTokenSecret",
+      "Effect": "Allow",
+      "Action": "secretsmanager:GetSecretValue",
+      "Resource": "<TOKEN_SECRET_ARN>"
+    },
+    {
+      "Sid": "CloudWatchLogsForAgentTaskDef",
+      "Effect": "Allow",
+      "Action": ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"],
+      "Resource": "<LOG_GROUP_ARN_PATTERN>"
+    }
+  ]
+}
+```
+
+`<LOG_GROUP_ARN_PATTERN>` should match the `awslogs-group` you set on the task
+definition. Use a literal ARN (`arn:aws:logs:us-east-2:123456789012:log-group:/ecs/argus-agent:*`)
+or a wildcard if you anticipate multiple log groups under the same prefix.
+
+**Attach to the TASK role** (the agent process identity):
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ArgusDiscoveryRead",
+      "Effect": "Allow",
+      "Action": [
+        "s3:ListAllMyBuckets", "s3:GetBucketLocation", "s3:GetBucketTagging",
+        "s3:GetBucketPolicy", "s3:GetBucketAcl", "s3:GetBucketEncryption",
+        "s3:GetBucketPublicAccessBlock", "s3:GetBucketVersioning",
+        "s3:ListBucket", "s3:GetObject",
+        "rds:DescribeDBInstances", "rds:DescribeDBClusters", "rds:ListTagsForResource",
+        "dynamodb:ListTables", "dynamodb:DescribeTable", "dynamodb:ListTagsOfResource",
+        "ec2:DescribeVolumes", "ec2:DescribeRegions",
+        "sts:GetCallerIdentity", "ssm:GetParameter"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
+```
+
+For least-privilege at scale, narrow the `Resource` on per-service Sids
+(e.g. restrict S3 actions to specific bucket ARNs). The wildcard above is
+the recommended starting point for first-deploy validation.
+
 ## CloudFormation - one-click EC2
 
 Open this URL in a browser logged into the target AWS account:
