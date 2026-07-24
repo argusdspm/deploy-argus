@@ -22,7 +22,7 @@ resource "aws_cloudwatch_dashboard" "argus_agent_dashboard" {
           ]
           view    = "timeSeries"
           stacked = false
-          region  = var.aws_region
+          region  = local.aws_region
           title   = "EC2 Instance Metrics"
           period  = 300
         }
@@ -41,7 +41,7 @@ resource "aws_cloudwatch_dashboard" "argus_agent_dashboard" {
           ]
           view    = "timeSeries"
           stacked = false
-          region  = var.aws_region
+          region  = local.aws_region
           title   = "Disk I/O Operations"
           period  = 300
         }
@@ -55,7 +55,7 @@ resource "aws_cloudwatch_dashboard" "argus_agent_dashboard" {
 
         properties = {
           query  = "SOURCE '${aws_cloudwatch_log_group.argus_agent_logs.name}' | fields @timestamp, @message | sort @timestamp desc | limit 100"
-          region = var.aws_region
+          region = local.aws_region
           title  = "Recent Agent Logs"
         }
       }

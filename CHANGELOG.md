@@ -15,6 +15,33 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 When in doubt, bump minor.
 
+## [v0.8.5] - 2026-07-24
+
+Co-released with agent `0.8.5`. Makes Fargate burst autoscaling actually work and completes region/AZ handling on the EC2 module. Builds on the deploy-safety fixes in v0.7.7. Both module fixes below were surfaced by the first live end-to-end deploy to a non-default region and subnet (us-east-2).
+
+### Added
+- **Fargate burst autoscaling, opt-in via `enable_burst_autoscaling`** (default `false`, matching the managed CloudFormation template). Gates the burst service + task definition (scale-to-zero), an Application Auto Scaling target, step-scaling policies, and two CloudWatch backlog alarms. A baseline-only deploy provisions and pays for none of it.
+
+### Changed
+- **Canonical autoscaler metric contract**: namespace `ArgusDSPM/Agent`, metric `PendingJobs`, single `ClusterName` dimension (the module sets `CLOUDWATCH_METRICS_CLUSTER` to the ECS cluster name), value = total unclaimed backlog. The always-on baseline keeps the stream fed so scaling survives burst scale-to-zero. This replaces a target-tracking policy that watched a metric the agent never published: cloud autoscaling had never actually functioned.
+- **Fargate now uses step scaling** (CloudWatch alarms drive scale-out/scale-in) instead of target tracking.
+- **Breaking (pre-v1.0): `burst_target_pending_jobs_per_agent` removed**, replaced by `burst_scale_out_backlog` (default 20) and `burst_scale_in_backlog` (default 5), the editable step-scaling triggers. `burst_min_capacity`/`burst_max_capacity` unchanged.
+
+### Fixed
+- **EC2 module region hardcoded to `us-east-1`.** `var.aws_region` defaulted to a literal `us-east-1` and set the agent's `AWS_REGION`, so the agent targeted the wrong region on any non-us-east-1 deploy. It now resolves from the configured provider (matching the Fargate module); an explicit `aws_region` still overrides.
+- **EC2 instance availability-zone conflict.** The instance pinned the first AZ in the region even when a `subnet_id` in a different AZ was supplied, so `RunInstances` rejected the mismatch. The supplied subnet's AZ now wins; the AZ is only pinned for the module-created subnet.
+
+> Note: the managed one-click template (`argus-managed-fargate-v1.yml`) lives in the Argus backend repo, not here; the matching autoscaling option was added there in the same change.
+
+## [v0.7.7] - 2026-06-15
+
+### Fixed
+- **Non-ASCII em dashes** scattered through `.tf`/`.md`/`.yml`/`.sh` files. AWS `CreateSecurityGroup` rejects non-ASCII in security group descriptions, which failed `terraform apply` outright. Replaced with ASCII throughout.
+
+### Added
+- **Public-subnet plumbing.** `assign_public_ip` on the Fargate ENI and the matching EC2 user-data path, so public-subnet deploys without a NAT gateway can reach the internet.
+- **Fargate region-from-provider.** `aws_region` reads from the configured provider via `data.aws_region.current` instead of a hardcoded default.
+
 ## [v0.7.6] - 2026-05-13
 
 ### Added

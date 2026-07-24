@@ -1,4 +1,4 @@
-# Argus Agent Fargate Module - Variables
+# Argus Agent Fargate Module — Variables
 #
 # Self-contained: provisions the ECS cluster, IAM, log group, and SSM
 # enrollment-token secret. Customers provide vpc_id + subnet_ids; the
@@ -41,6 +41,12 @@ variable "subnet_ids" {
   }
 }
 
+variable "assign_public_ip" {
+  type        = bool
+  description = "Assign a public IP to the Fargate ENI. Set true for public-subnet deploys without a NAT gateway; leave false for private subnets that reach the internet via NAT."
+  default     = false
+}
+
 # -----------------------------------------------------------------------------
 # Argus backend
 # -----------------------------------------------------------------------------
@@ -69,8 +75,8 @@ variable "agent_image_tag" {
 
 variable "aws_region" {
   type        = string
-  description = "AWS region the ECS cluster runs in. Optional. When null (default), the module reads the region from the configured AWS provider via `data.aws_region.current`. Override only if you need to pin a different region than the provider."
-  default     = null
+  description = "AWS region the ECS cluster runs in. Leave empty to read from the configured provider."
+  default     = ""
 }
 
 # -----------------------------------------------------------------------------
@@ -95,6 +101,12 @@ variable "concurrent_jobs" {
   default     = 4
 }
 
+variable "enable_burst_autoscaling" {
+  type        = bool
+  description = "Provision the autoscaled burst pool (burst service + scalable target + step policies + backlog alarms) and have the baseline emit the backlog metric. Off by default so a plain baseline deploy matches the managed CloudFormation template; flip on to enable autoscaling. burst_min/max_capacity and the scale thresholds apply only when this is true."
+  default     = false
+}
+
 variable "burst_min_capacity" {
   type        = number
   description = "Minimum burst tasks. 0 = scale-to-zero (recommended). Baseline service stays at 1 regardless."
@@ -107,9 +119,15 @@ variable "burst_max_capacity" {
   default     = 10
 }
 
-variable "burst_target_pending_jobs_per_agent" {
+variable "burst_scale_out_backlog" {
   type        = number
-  description = "Target pending jobs per active agent. The autoscaler aims to keep this many unclaimed jobs per running burst container."
+  description = "Add a burst task when the total unclaimed backlog (ArgusDSPM/Agent PendingJobs) stays at or above this for one minute. This is the editable scale-out trigger."
+  default     = 20
+}
+
+variable "burst_scale_in_backlog" {
+  type        = number
+  description = "Remove a burst task when the backlog stays below this for three minutes. Keep below burst_scale_out_backlog to avoid flapping."
   default     = 5
 }
 
@@ -198,11 +216,5 @@ variable "db_secrets_arn_pattern" {
 variable "enable_database_egress" {
   type        = bool
   description = "Add security-group egress rules for database ports (3306 / 5432 / 5439)."
-  default     = false
-}
-
-variable "assign_public_ip" {
-  type        = bool
-  description = "Whether to assign a public IP to the Fargate task ENI. Set to true when running in a public subnet without a NAT gateway (default-VPC style). Set to false when running in a private subnet that reaches the internet via NAT."
   default     = false
 }

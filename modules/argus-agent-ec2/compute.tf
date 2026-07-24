@@ -9,7 +9,9 @@ resource "aws_instance" "argus_agent" {
   subnet_id              = local.subnet_id
   vpc_security_group_ids = [aws_security_group.argus_agent_sg.id]
   iam_instance_profile   = aws_iam_instance_profile.argus_agent_profile.name
-  availability_zone      = local.selected_az
+  # When the caller supplies a subnet, its AZ wins; only pin the AZ for the
+  # module-created subnet. Setting both to different AZs is a RunInstances error.
+  availability_zone = var.subnet_id != "" ? null : local.selected_az
 
   # Root volume configuration
   root_block_device {

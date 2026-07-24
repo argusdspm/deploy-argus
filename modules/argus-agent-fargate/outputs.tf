@@ -1,4 +1,4 @@
-# Argus Agent Fargate Module - Outputs
+# Argus Agent Fargate Module — Outputs
 
 output "cluster_name" {
   description = "Name of the ECS cluster created for the agent."
@@ -16,8 +16,8 @@ output "baseline_service_name" {
 }
 
 output "burst_service_name" {
-  description = "Name of the autoscaled burst ECS service."
-  value       = aws_ecs_service.burst.name
+  description = "Name of the autoscaled burst ECS service (null when enable_burst_autoscaling is false)."
+  value       = var.enable_burst_autoscaling ? aws_ecs_service.burst[0].name : null
 }
 
 output "baseline_task_definition_arn" {
@@ -26,8 +26,8 @@ output "baseline_task_definition_arn" {
 }
 
 output "burst_task_definition_arn" {
-  description = "ARN of the burst task definition."
-  value       = aws_ecs_task_definition.burst.arn
+  description = "ARN of the burst task definition (null when enable_burst_autoscaling is false)."
+  value       = var.enable_burst_autoscaling ? aws_ecs_task_definition.burst[0].arn : null
 }
 
 output "execution_role_arn" {

@@ -1,10 +1,10 @@
-# Argus Agent Fargate Module - Main configuration.
+# Argus Agent Fargate Module — Main configuration.
 #
 # Two ECS services:
-#   * argus-agent-baseline - desired_count = 1, never autoscaled. Stable
-#     anchor; emits the argus_pending_jobs CloudWatch metric so the burst
-#     autoscaler always has a signal even at scale-to-zero.
-#   * argus-agent-burst    - desired_count = auto, min=0, max=N. Scales
+#   * argus-agent-baseline — desired_count = 1, never autoscaled. Stable
+#     anchor; emits the ArgusDSPM/Agent PendingJobs CloudWatch metric so the
+#     burst autoscaler always has a signal even at scale-to-zero.
+#   * argus-agent-burst    — desired_count = auto, min=0, max=N. Scales
 #     up on pending-jobs depth, drops to 0 when idle.
 #
 # Both share one enrollment token (per cloud account), stored once as an
@@ -14,18 +14,12 @@
 # Locals
 # -----------------------------------------------------------------------------
 
-# Resolve the AWS region from the provider instead of forcing the caller to
-# pass it. var.aws_region is still honored if set (back-compat), but defaults
-# to the configured provider region. Eliminates the "awslogs-region mismatch"
-# class of bug where the module's default us-east-1 silently overrides the
-# provider's actual region.
-data "aws_region" "current" {}
-
 locals {
-  aws_region = coalesce(var.aws_region, data.aws_region.current.name)
-
   name_prefix = "argus-agent-${var.customer_name}"
   image_uri   = "${var.agent_image_registry}:${var.agent_image_tag}"
+  # Region for awslogs + outputs: honor an explicit override, else read from the
+  # configured provider so the deploy works in any region (not just us-east-1).
+  aws_region = var.aws_region != "" ? var.aws_region : data.aws_region.current.name
 
   s3_enabled          = var.enable_all_datastores || var.enable_s3_scanning
   rds_enabled         = var.enable_all_datastores || var.enable_rds_scanning
@@ -49,10 +43,17 @@ locals {
     { name = "AWS_ROLE_ARN", value = "" }, # same-account model
     { name = "AWS_EXTERNAL_ID", value = "" },
     { name = "AGENT_CONCURRENT_JOBS", value = tostring(var.concurrent_jobs) },
+    # Burst-autoscaler signal. Every agent publishes the total backlog to the
+    # same cluster-dimensioned ArgusDSPM/Agent PendingJobs stream that the
+    # scale-out/in alarms read (canonical metric contract). Only emitted when
+    # autoscaling is on - a baseline-only deploy pays nothing.
+    { name = "CLOUDWATCH_METRICS_ENABLED", value = var.enable_burst_autoscaling ? "true" : "false" },
+    { name = "CLOUDWATCH_METRICS_CLUSTER", value = local.name_prefix },
   ]
 }
 
 data "aws_caller_identity" "current" {}
+data "aws_region" "current" {}
 
 # -----------------------------------------------------------------------------
 # ECS cluster
@@ -137,6 +138,7 @@ resource "aws_ecs_task_definition" "baseline" {
 }
 
 resource "aws_ecs_task_definition" "burst" {
+  count                    = var.enable_burst_autoscaling ? 1 : 0
   family                   = "${local.name_prefix}-burst"
   cpu                      = var.cpu
   memory                   = var.memory
@@ -195,9 +197,10 @@ resource "aws_ecs_service" "baseline" {
 }
 
 resource "aws_ecs_service" "burst" {
+  count           = var.enable_burst_autoscaling ? 1 : 0
   name            = "${local.name_prefix}-burst"
   cluster         = aws_ecs_cluster.argus.arn
-  task_definition = aws_ecs_task_definition.burst.arn
+  task_definition = aws_ecs_task_definition.burst[0].arn
   desired_count   = 0
   launch_type     = "FARGATE"
 
@@ -215,32 +218,93 @@ resource "aws_ecs_service" "burst" {
 }
 
 # -----------------------------------------------------------------------------
-# Burst autoscaler - tracks the agent-emitted argus_pending_jobs metric
+# Burst autoscaler — STEP scaling on the agent-emitted backlog metric.
+#
+# Canonical metric contract (MUST match the agent's emission exactly, or the
+# alarms watch a stream with no data):
+#   Namespace  ArgusDSPM/Agent
+#   Metric     PendingJobs
+#   Dimension  ClusterName = local.name_prefix   (set on the agent via
+#              CLOUDWATCH_METRICS_CLUSTER in shared_environment)
+#   Value      total unclaimed backlog, Unit=Count, Statistic Average
+# The always-on baseline keeps the stream fed even at burst scale-to-zero.
 # -----------------------------------------------------------------------------
 
 resource "aws_appautoscaling_target" "burst" {
+  count              = var.enable_burst_autoscaling ? 1 : 0
   service_namespace  = "ecs"
-  resource_id        = "service/${aws_ecs_cluster.argus.name}/${aws_ecs_service.burst.name}"
+  resource_id        = "service/${aws_ecs_cluster.argus.name}/${aws_ecs_service.burst[0].name}"
   scalable_dimension = "ecs:service:DesiredCount"
   min_capacity       = var.burst_min_capacity
   max_capacity       = var.burst_max_capacity
 }
 
-resource "aws_appautoscaling_policy" "burst_scale_on_pending" {
-  name               = "${local.name_prefix}-burst-pending-jobs"
-  policy_type        = "TargetTrackingScaling"
-  service_namespace  = aws_appautoscaling_target.burst.service_namespace
-  resource_id        = aws_appautoscaling_target.burst.resource_id
-  scalable_dimension = aws_appautoscaling_target.burst.scalable_dimension
+resource "aws_appautoscaling_policy" "burst_scale_out" {
+  count              = var.enable_burst_autoscaling ? 1 : 0
+  name               = "${local.name_prefix}-burst-scale-out"
+  policy_type        = "StepScaling"
+  service_namespace  = aws_appautoscaling_target.burst[0].service_namespace
+  resource_id        = aws_appautoscaling_target.burst[0].resource_id
+  scalable_dimension = aws_appautoscaling_target.burst[0].scalable_dimension
 
-  target_tracking_scaling_policy_configuration {
-    target_value = var.burst_target_pending_jobs_per_agent
-    customized_metric_specification {
-      metric_name = "argus_pending_jobs"
-      namespace   = "ArgusDSPM/Agent"
-      statistic   = "Average"
+  step_scaling_policy_configuration {
+    adjustment_type         = "ChangeInCapacity"
+    cooldown                = 60
+    metric_aggregation_type = "Average"
+    step_adjustment {
+      metric_interval_lower_bound = 0
+      scaling_adjustment          = 1
     }
-    scale_in_cooldown  = 300
-    scale_out_cooldown = 60
   }
+}
+
+resource "aws_appautoscaling_policy" "burst_scale_in" {
+  count              = var.enable_burst_autoscaling ? 1 : 0
+  name               = "${local.name_prefix}-burst-scale-in"
+  policy_type        = "StepScaling"
+  service_namespace  = aws_appautoscaling_target.burst[0].service_namespace
+  resource_id        = aws_appautoscaling_target.burst[0].resource_id
+  scalable_dimension = aws_appautoscaling_target.burst[0].scalable_dimension
+
+  step_scaling_policy_configuration {
+    adjustment_type         = "ChangeInCapacity"
+    cooldown                = 300
+    metric_aggregation_type = "Average"
+    step_adjustment {
+      metric_interval_upper_bound = 0
+      scaling_adjustment          = -1
+    }
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "burst_backlog_high" {
+  count               = var.enable_burst_autoscaling ? 1 : 0
+  alarm_name          = "${local.name_prefix}-burst-backlog-high"
+  alarm_description   = "Unclaimed scan backlog is high - add burst capacity."
+  namespace           = "ArgusDSPM/Agent"
+  metric_name         = "PendingJobs"
+  dimensions          = { ClusterName = local.name_prefix }
+  statistic           = "Average"
+  period              = 60
+  evaluation_periods  = 1
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  threshold           = var.burst_scale_out_backlog
+  treat_missing_data  = "notBreaching" # no metric yet = baseline still booting; don't scale
+  alarm_actions       = [aws_appautoscaling_policy.burst_scale_out[0].arn]
+}
+
+resource "aws_cloudwatch_metric_alarm" "burst_backlog_low" {
+  count               = var.enable_burst_autoscaling ? 1 : 0
+  alarm_name          = "${local.name_prefix}-burst-backlog-low"
+  alarm_description   = "Backlog drained - release burst capacity."
+  namespace           = "ArgusDSPM/Agent"
+  metric_name         = "PendingJobs"
+  dimensions          = { ClusterName = local.name_prefix }
+  statistic           = "Average"
+  period              = 60
+  evaluation_periods  = 3
+  comparison_operator = "LessThanThreshold"
+  threshold           = var.burst_scale_in_backlog
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = [aws_appautoscaling_policy.burst_scale_in[0].arn]
 }

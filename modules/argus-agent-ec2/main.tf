@@ -45,6 +45,9 @@ locals {
   subnet_id   = var.subnet_id != "" ? var.subnet_id : aws_subnet.argus_subnet[0].id
   vpc_cidr    = var.vpc_id != "" ? data.aws_vpc.selected[0].cidr_block : aws_vpc.argus_vpc[0].cidr_block
   selected_az = var.availability_zone != "" ? var.availability_zone : data.aws_availability_zones.available.names[0]
+  # Honor an explicit region override, else read from the configured provider so
+  # the agent's AWS_REGION matches where it actually runs (not just us-east-1).
+  aws_region = var.aws_region != "" ? var.aws_region : data.aws_region.current.name
 
   # Datastore opt-in resolution (enable_all overrides individuals)
   s3_enabled          = var.enable_all_datastores || var.enable_s3_scanning
@@ -74,7 +77,7 @@ locals {
   # inside user_data.sh exactly. See user_data.sh header for the contract.
   user_data = base64encode(templatefile("${path.module}/user_data.sh", {
     argus_backend_url      = var.argus_backend_url
-    aws_region             = var.aws_region
+    aws_region             = local.aws_region
     enrollment_token_param = aws_ssm_parameter.enrollment_token.name
     aws_role_arn           = "" # same-account model - agent uses its instance profile
     aws_external_id        = "" # not used in same-account model

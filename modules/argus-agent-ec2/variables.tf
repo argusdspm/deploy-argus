@@ -62,9 +62,9 @@ variable "agent_log_level" {
 # -----------------------------------------------------------------------------
 
 variable "aws_region" {
-  description = "AWS region for agent deployment."
+  description = "AWS region for agent deployment. Leave empty to read from the configured provider."
   type        = string
-  default     = "us-east-1"
+  default     = ""
 }
 
 variable "availability_zone" {

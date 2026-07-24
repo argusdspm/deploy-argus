@@ -125,7 +125,7 @@ output "agent_connection_info" {
   value = {
     instance_id       = aws_instance.argus_agent.id
     role_arn          = aws_iam_role.argus_agent_role.arn
-    region            = var.aws_region
+    region            = local.aws_region
     availability_zone = aws_instance.argus_agent.availability_zone
     private_ip        = aws_instance.argus_agent.private_ip
     customer_name     = var.customer_name
