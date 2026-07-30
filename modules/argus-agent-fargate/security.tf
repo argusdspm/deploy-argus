@@ -68,7 +68,7 @@ resource "aws_security_group_rule" "redshift_egress" {
 # -----------------------------------------------------------------------------
 
 resource "aws_iam_role" "execution" {
-  name = "${local.name_prefix}-execution"
+  name = "ArgusAgentExecutionRole-${var.customer_name}"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -88,7 +88,7 @@ resource "aws_iam_role_policy_attachment" "execution_basic" {
 }
 
 resource "aws_iam_policy" "execution_ssm" {
-  name        = "${local.name_prefix}-execution-ssm"
+  name        = "ArgusAgentExecutionSSMPolicy-${var.customer_name}"
   description = "Read enrollment-token SSM parameter for Fargate task execution."
 
   policy = jsonencode({
@@ -114,7 +114,7 @@ resource "aws_iam_role_policy_attachment" "execution_ssm" {
 # -----------------------------------------------------------------------------
 
 resource "aws_iam_role" "task" {
-  name = "${local.name_prefix}-task"
+  name = "ArgusAgentTaskRole-${var.customer_name}"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -134,7 +134,7 @@ resource "aws_iam_role" "task" {
 
 resource "aws_iam_policy" "task_s3" {
   count       = local.s3_enabled ? 1 : 0
-  name        = "${local.name_prefix}-task-s3"
+  name        = "ArgusAgentS3Policy-${var.customer_name}"
   description = "S3 read for Argus scanning."
 
   policy = jsonencode({
@@ -162,7 +162,10 @@ resource "aws_iam_policy" "task_s3" {
           "s3:GetBucketPolicy",
           "s3:GetBucketPolicyStatus",
           "s3:GetBucketPublicAccessBlock",
-          "s3:GetEncryptionConfiguration"
+          "s3:GetEncryptionConfiguration",
+          # Access-logging posture. Without it the logging control reads
+          # "not verified" for a reason that is ours, not the customer's.
+          "s3:GetBucketLogging"
         ]
         Resource = "arn:aws:s3:::*"
       },
@@ -186,7 +189,7 @@ resource "aws_iam_role_policy_attachment" "task_s3" {
 
 resource "aws_iam_policy" "task_rds" {
   count       = local.rds_enabled ? 1 : 0
-  name        = "${local.name_prefix}-task-rds"
+  name        = "ArgusAgentRDSPolicy-${var.customer_name}"
   description = "RDS describe + IAM DB Auth for Argus scanning."
 
   policy = jsonencode({
@@ -218,16 +221,18 @@ resource "aws_iam_role_policy_attachment" "task_rds" {
 
 resource "aws_iam_policy" "task_dynamodb" {
   count       = local.dynamodb_enabled ? 1 : 0
-  name        = "${local.name_prefix}-task-dynamodb"
+  name        = "ArgusAgentDynamoDBPolicy-${var.customer_name}"
   description = "DynamoDB describe + read for Argus scanning."
 
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
-        Sid      = "DynamoDBDiscovery"
-        Effect   = "Allow"
-        Action   = ["dynamodb:ListTables", "dynamodb:DescribeTable", "dynamodb:ListTagsOfResource"]
+        Sid    = "DynamoDBDiscovery"
+        Effect = "Allow"
+        # GetResourcePolicy: DynamoDB resource-based policies (2024+) can share a
+        # table with Principal:"*". Without it we assert "private" on faith.
+        Action   = ["dynamodb:ListTables", "dynamodb:DescribeTable", "dynamodb:ListTagsOfResource", "dynamodb:GetResourcePolicy"]
         Resource = "*"
       },
       {
@@ -250,7 +255,7 @@ resource "aws_iam_role_policy_attachment" "task_dynamodb" {
 
 resource "aws_iam_policy" "task_redshift" {
   count       = local.redshift_enabled ? 1 : 0
-  name        = "${local.name_prefix}-task-redshift"
+  name        = "ArgusAgentRedshiftPolicy-${var.customer_name}"
   description = "Redshift describe + Data API for Argus scanning."
 
   policy = jsonencode({
@@ -299,7 +304,7 @@ resource "aws_iam_role_policy_attachment" "task_redshift" {
 
 resource "aws_iam_policy" "task_db_secrets" {
   count       = var.db_secrets_arn_pattern != "" ? 1 : 0
-  name        = "${local.name_prefix}-task-db-secrets"
+  name        = "ArgusAgentDBSecretsPolicy-${var.customer_name}"
   description = "Secrets Manager read for customer-supplied DB credentials."
 
   policy = jsonencode({
@@ -323,7 +328,7 @@ resource "aws_iam_role_policy_attachment" "task_db_secrets" {
 
 resource "aws_iam_policy" "task_cloudwatch" {
   count       = var.enable_burst_autoscaling ? 1 : 0
-  name        = "${local.name_prefix}-task-cloudwatch"
+  name        = "ArgusAgentCloudWatchPolicy-${var.customer_name}"
   description = "CloudWatch metric publish for the agent's ArgusDSPM/Agent PendingJobs gauge."
 
   policy = jsonencode({
@@ -356,7 +361,7 @@ resource "aws_iam_role_policy_attachment" "task_cloudwatch" {
 
 resource "aws_iam_policy" "task_redshift_serverless" {
   count       = local.redshift_enabled ? 1 : 0
-  name        = "${local.name_prefix}-task-redshift-serverless"
+  name        = "ArgusAgentRedshiftServerlessPolicy-${var.customer_name}"
   description = "Redshift Serverless describe + IAM-DB-Auth credentials."
 
   policy = jsonencode({
@@ -396,7 +401,7 @@ resource "aws_iam_role_policy_attachment" "task_redshift_serverless" {
 
 resource "aws_iam_policy" "task_iam_discovery" {
   count       = local.iam_enabled ? 1 : 0
-  name        = "${local.name_prefix}-task-iam-discovery"
+  name        = "ArgusAgentIAMDiscoveryPolicy-${var.customer_name}"
   description = "IAM read-only for identity discovery + policy analysis. Get*PolicyVersion + Get*Policy actions are required by the wildcard-inline over-privilege detector."
 
   policy = jsonencode({
@@ -421,6 +426,9 @@ resource "aws_iam_policy" "task_iam_discovery" {
           "iam:GetRolePolicy",
           "iam:ListAttachedRolePolicies",
           "iam:ListGroups",
+          # Group membership - without it an identity's effective permissions
+          # via its groups are invisible to the access graph.
+          "iam:ListGroupsForUser",
           "iam:ListGroupPolicies",
           "iam:GetGroupPolicy",
           "iam:ListAttachedGroupPolicies",
@@ -428,6 +436,10 @@ resource "aws_iam_policy" "task_iam_discovery" {
           "iam:GetPolicyVersion",
           "iam:GenerateCredentialReport",
           "iam:GetCredentialReport",
+          # Permission-usage history, which drives over-provisioning detection
+          # (granted vs actually used).
+          "iam:GetServiceLastAccessedDetails",
+          "iam:GenerateServiceLastAccessedDetails",
           "iam:SimulatePrincipalPolicy"
         ]
         Resource = "*"
@@ -450,7 +462,7 @@ resource "aws_iam_role_policy_attachment" "task_iam_discovery" {
 
 resource "aws_iam_policy" "task_cloudwatch_read" {
   count       = local.s3_enabled ? 1 : 0
-  name        = "${local.name_prefix}-task-cloudwatch-read"
+  name        = "ArgusAgentCloudWatchReadPolicy-${var.customer_name}"
   description = "CloudWatch read for fast S3 size/count estimation."
 
   policy = jsonencode({
@@ -460,6 +472,15 @@ resource "aws_iam_policy" "task_cloudwatch_read" {
         Sid      = "CloudWatchReadForS3Stats"
         Effect   = "Allow"
         Action   = ["cloudwatch:GetMetricStatistics"]
+        Resource = "*"
+      },
+      {
+        # Region enumeration + the cross-account guard. Fargate has no instance
+        # metadata policy (unlike the EC2 module), so these live here. Without
+        # sts:GetCallerIdentity the agent refuses to persist scan results.
+        Sid      = "ArgusAccountContext"
+        Effect   = "Allow"
+        Action   = ["ec2:DescribeRegions", "sts:GetCallerIdentity"]
         Resource = "*"
       }
     ]
@@ -480,7 +501,7 @@ resource "aws_iam_role_policy_attachment" "task_cloudwatch_read" {
 
 resource "aws_iam_policy" "task_s3_remediation" {
   count       = local.remediation_enabled && local.s3_enabled ? 1 : 0
-  name        = "${local.name_prefix}-task-s3-remediation"
+  name        = "ArgusAgentS3RemediationPolicy-${var.customer_name}"
   description = "S3 write actions for remediation: block public access, encryption, versioning, policy."
 
   policy = jsonencode({
@@ -515,7 +536,7 @@ resource "aws_iam_role_policy_attachment" "task_s3_remediation" {
 
 resource "aws_iam_policy" "task_iam_remediation" {
   count       = local.remediation_enabled && local.iam_enabled ? 1 : 0
-  name        = "${local.name_prefix}-task-iam-remediation"
+  name        = "ArgusAgentIAMRemediationPolicy-${var.customer_name}"
   description = "IAM write actions for remediation: disable stale keys, attach/detach policies, enforce MFA."
 
   policy = jsonencode({

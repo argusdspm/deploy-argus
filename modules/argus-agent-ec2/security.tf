@@ -33,21 +33,38 @@ resource "aws_security_group" "argus_agent_sg" {
     description = "DNS."
   }
 
-  ingress {
-    from_port   = 8080
-    to_port     = 8080
-    protocol    = "tcp"
-    cidr_blocks = [var.vpc_id != "" ? data.aws_vpc.selected[0].cidr_block : aws_vpc.argus_vpc[0].cidr_block]
-    description = "Agent health endpoint - internal VPC only."
+  # NO INBOUND BY DEFAULT. Every ingress below is opt-in, matching the managed
+  # CloudFormation template. Previously the health endpoint and Instance Connect
+  # rules were unconditional, so the DIY path - chosen precisely by customers who
+  # want tighter control - shipped a weaker default than the managed one. The
+  # agent needs no inbound reachability to function: it polls outbound.
+
+  # Agent health endpoint. Off by default; Session Manager or the container
+  # runtime's own health check covers the same need without an open port.
+  dynamic "ingress" {
+    for_each = var.enable_health_endpoint ? [1] : []
+    content {
+      from_port   = 8080
+      to_port     = 8080
+      protocol    = "tcp"
+      cidr_blocks = [var.vpc_id != "" ? data.aws_vpc.selected[0].cidr_block : aws_vpc.argus_vpc[0].cidr_block]
+      description = "Agent health endpoint - internal VPC only."
+    }
   }
 
-  # SSH via EC2 Instance Connect (managed AWS prefix list)
-  ingress {
-    from_port       = 22
-    to_port         = 22
-    protocol        = "tcp"
-    prefix_list_ids = ["pl-03915406641cb1f53"]
-    description     = "SSH via EC2 Instance Connect."
+  # SSH via EC2 Instance Connect. Gated behind the same flag as CIDR-based SSH.
+  # The prefix list is looked up by name rather than hardcoded: managed prefix
+  # list IDs are REGION-SPECIFIC, so a literal id only resolves in the region it
+  # came from and fails (or resolves to something else) everywhere else.
+  dynamic "ingress" {
+    for_each = var.enable_ssh_access ? [1] : []
+    content {
+      from_port       = 22
+      to_port         = 22
+      protocol        = "tcp"
+      prefix_list_ids = [data.aws_ec2_managed_prefix_list.instance_connect[0].id]
+      description     = "SSH via EC2 Instance Connect."
+    }
   }
 
   dynamic "ingress" {
@@ -69,6 +86,13 @@ resource "aws_security_group" "argus_agent_sg" {
 data "aws_vpc" "selected" {
   count = var.vpc_id != "" ? 1 : 0
   id    = var.vpc_id
+}
+
+# Region-correct EC2 Instance Connect prefix list. Only looked up when SSH is
+# enabled, so a deployment with SSH off makes no extra API call.
+data "aws_ec2_managed_prefix_list" "instance_connect" {
+  count = var.enable_ssh_access ? 1 : 0
+  name  = "com.amazonaws.${data.aws_region.current.name}.ec2-instance-connect"
 }
 
 # -----------------------------------------------------------------------------
@@ -219,7 +243,11 @@ resource "aws_iam_policy" "argus_agent_ec2_policy" {
         "ec2:DescribeInstances",
         "ec2:DescribeInstanceAttribute",
         "ec2:DescribeRegions",
-        "ec2:DescribeAvailabilityZones"
+        "ec2:DescribeAvailabilityZones",
+        # Cross-account guard: the agent asserts it is running inside the AWS
+        # account that was registered. Without it the agent refuses to persist
+        # scan results.
+        "sts:GetCallerIdentity"
       ]
       Resource = "*"
     }]
@@ -309,7 +337,10 @@ resource "aws_iam_policy" "argus_agent_s3_policy" {
           "s3:GetBucketPolicy",
           "s3:GetBucketPolicyStatus",
           "s3:GetBucketPublicAccessBlock",
-          "s3:GetEncryptionConfiguration"
+          "s3:GetEncryptionConfiguration",
+          # Access-logging posture. Without it the logging control reads
+          # "not verified" for a reason that is ours, not the customer's.
+          "s3:GetBucketLogging"
         ]
         Resource = "arn:aws:s3:::*"
       },
@@ -389,7 +420,11 @@ resource "aws_iam_policy" "argus_agent_dynamodb_policy" {
         Action = [
           "dynamodb:ListTables",
           "dynamodb:DescribeTable",
-          "dynamodb:ListTagsOfResource"
+          "dynamodb:ListTagsOfResource",
+          # DynamoDB resource-based policies (2024+) can share a table with
+          # Principal:"*". Without this the agent cannot tell "no share" from
+          # "could not look", so it would assert private on faith.
+          "dynamodb:GetResourcePolicy"
         ]
         Resource = "*"
       },
@@ -551,6 +586,9 @@ resource "aws_iam_policy" "argus_agent_iam_discovery_policy" {
           "iam:GetRolePolicy",
           "iam:ListAttachedRolePolicies",
           "iam:ListGroups",
+          # Group membership - without it an identity's effective permissions
+          # via its groups are invisible to the access graph.
+          "iam:ListGroupsForUser",
           "iam:ListGroupPolicies",
           "iam:GetGroupPolicy",
           "iam:ListAttachedGroupPolicies",
@@ -558,6 +596,10 @@ resource "aws_iam_policy" "argus_agent_iam_discovery_policy" {
           "iam:GetPolicyVersion",
           "iam:GenerateCredentialReport",
           "iam:GetCredentialReport",
+          # Permission-usage history, which drives over-provisioning detection
+          # (granted vs actually used).
+          "iam:GetServiceLastAccessedDetails",
+          "iam:GenerateServiceLastAccessedDetails",
           "iam:SimulatePrincipalPolicy"
         ]
         Resource = "*"

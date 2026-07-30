@@ -122,7 +122,13 @@ variable "root_volume_size" {
 }
 
 variable "enable_ssh_access" {
-  description = "Enable SSH access for debugging (not recommended in production)."
+  description = "Enable SSH access for debugging (not recommended in production). Opens port 22 from the region's EC2 Instance Connect prefix list, and additionally from allowed_cidr_blocks when that is set. Leave false and use AWS Systems Manager Session Manager, which needs no open port."
+  type        = bool
+  default     = false
+}
+
+variable "enable_health_endpoint" {
+  description = "Open the agent health endpoint (port 8080) to the VPC CIDR. Off by default: the agent polls outbound and needs no inbound reachability to function, so this is only useful if you scrape the endpoint from inside the VPC."
   type        = bool
   default     = false
 }
