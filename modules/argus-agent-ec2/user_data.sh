@@ -68,13 +68,21 @@ EOF
 systemctl daemon-reload
 systemctl enable --now argus-agent.service
 
-# Weekly image refresh - keeps the agent on the rolling `stable` tag
-# without a redeploy. Customers who pinned a specific version override
-# `agent_image` in the Terraform module and the cron is harmless (the
-# tag won't move under them).
+# Weekly image refresh - keeps the agent on the rolling `stable` tag without a
+# redeploy. Restart ONLY when the pull actually fetched a new image digest, so a
+# pinned version (or an unchanged `stable`) is left running instead of being
+# pointlessly recycled every week (which drops in-flight jobs and re-bootstraps).
+# Note: this heredoc is rendered by Terraform templatefile, so avoid $${...} -
+# use unbraced $VAR / $(...); {{.Id}} is not Terraform syntax and passes through.
 cat > /etc/cron.weekly/argus-agent-refresh <<'EOF'
 #!/usr/bin/env bash
-docker pull "$(grep '^ExecStartPre=/usr/bin/docker pull' /etc/systemd/system/argus-agent.service | awk '{print $NF}')" || exit 0
-systemctl restart argus-agent.service
+IMAGE="$(grep '^ExecStartPre=/usr/bin/docker pull' /etc/systemd/system/argus-agent.service | awk '{print $NF}')"
+[ -n "$IMAGE" ] || exit 0
+BEFORE="$(docker image inspect --format '{{.Id}}' "$IMAGE" 2>/dev/null || echo none)"
+docker pull "$IMAGE" || exit 0
+AFTER="$(docker image inspect --format '{{.Id}}' "$IMAGE" 2>/dev/null || echo none)"
+if [ "$BEFORE" != "$AFTER" ]; then
+  systemctl restart argus-agent.service
+fi
 EOF
 chmod +x /etc/cron.weekly/argus-agent-refresh
