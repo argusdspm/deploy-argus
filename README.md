@@ -163,73 +163,53 @@ aws ecs run-task \
 The DIY paths above need two separate IAM policies on two separate roles. Mixing
 them onto one role works but breaks least-privilege.
 
-**Attach to the EXECUTION role** (alongside AWS-managed
-`AmazonECSTaskExecutionRolePolicy`):
+**The policies are not reproduced here.** They were, and the copy drifted: it
+granted `s3:GetBucketEncryption` (not a real IAM action - the API is authorized by
+`s3:GetEncryptionConfiguration`, so that spelling granted nothing) and was missing
+every `iam:`, `redshift:` and `kms:` action, which meant identity discovery could
+not run at all for anyone who copied it.
 
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Sid": "ReadEnrollmentTokenSecret",
-      "Effect": "Allow",
-      "Action": "secretsmanager:GetSecretValue",
-      "Resource": "<TOKEN_SECRET_ARN>"
-    },
-    {
-      "Sid": "CloudWatchLogsForAgentTaskDef",
-      "Effect": "Allow",
-      "Action": ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"],
-      "Resource": "<LOG_GROUP_ARN_PATTERN>"
-    }
-  ]
-}
-```
+The permission set has a single source of truth in the product
+(`argus_agent/core/verification_permissions.py`), and every published artifact is
+generated from it and held in lock-step by a contract test. Copy the current
+policies from:
 
-`<LOG_GROUP_ARN_PATTERN>` should match the `awslogs-group` you set on the task
-definition. Use a literal ARN (`arn:aws:logs:us-east-2:123456789012:log-group:/ecs/argus-agent:*`)
-or a wildcard if you anticipate multiple log groups under the same prefix.
+- **[IAM permissions](https://argusdspm.com/docs/deploy/iam/)** - the task-role
+  (discovery) policy, the execution-role policy, and every trust policy, kept
+  current automatically.
 
-**Attach to the TASK role** (the agent process identity):
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Sid": "ArgusDiscoveryRead",
-      "Effect": "Allow",
-      "Action": [
-        "s3:ListAllMyBuckets", "s3:GetBucketLocation", "s3:GetBucketTagging",
-        "s3:GetBucketPolicy", "s3:GetBucketAcl", "s3:GetBucketEncryption",
-        "s3:GetBucketPublicAccessBlock", "s3:GetBucketVersioning",
-        "s3:ListBucket", "s3:GetObject",
-        "rds:DescribeDBInstances", "rds:DescribeDBClusters", "rds:ListTagsForResource",
-        "dynamodb:ListTables", "dynamodb:DescribeTable", "dynamodb:ListTagsOfResource",
-        "ec2:DescribeVolumes", "ec2:DescribeRegions",
-        "sts:GetCallerIdentity", "ssm:GetParameter"
-      ],
-      "Resource": "*"
-    }
-  ]
-}
-```
+The Terraform modules in this repository already apply the correct policies for
+you; the link above is only needed for the ECS task JSON and Local paths, where
+you create the roles by hand.
 
 For least-privilege at scale, narrow the `Resource` on per-service Sids
-(e.g. restrict S3 actions to specific bucket ARNs). The wildcard above is
-the recommended starting point for first-deploy validation.
+(e.g. restrict S3 actions to specific bucket ARNs). The wildcard is the
+recommended starting point for first-deploy validation.
 
 ## CloudFormation - one-click EC2
 
-Open this URL in a browser logged into the target AWS account:
+The managed CloudFormation templates are served by the Argus control plane, which
+is what the in-app **Deploy Agent** drawer links to. Use the drawer: it builds the
+Quick-Launch URL with your stack name, region and selected agent version already
+filled in.
+
+Templates are also fetchable directly if you want to review one before deploying,
+or upload it to the CloudFormation console yourself:
 
 ```
-https://console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/quickcreate?templateURL=https%3A%2F%2Fargusdspm.com%2Fdownloads%2Fcfn%2Fargus-managed-v1.yml&stackName=argus-agent&param_Region=us-east-1
+https://api.argusdspm.com/downloads/argus-managed-ec2-v1.yml
+https://api.argusdspm.com/downloads/argus-managed-fargate-v1.yml
 ```
 
-The console form will pre-fill stack name and region. **Paste your enrollment token into the `EnrollmentToken` field manually** - it is deliberately not included in the URL to keep the secret out of browser history. Click **Create stack**.
+**Paste your enrollment token into the `EnrollmentToken` field manually** - it is
+deliberately not included in any Quick-Launch URL, to keep the secret out of
+browser history and referer headers.
 
-You can also download `cloudformation/argus-agent-ec2.yml` from this repo and upload it directly via the CloudFormation console.
+> This repository no longer ships its own copy of the CloudFormation template. It
+> had diverged from the served one (it read the enrollment token from SSM
+> Parameter Store rather than Secrets Manager, and never received the opt-in SSH
+> parameters), and two copies of one template will always re-diverge. This repo is
+> the home of the **Terraform** modules; CloudFormation is served by the product.
 
 ## What gets deployed
 

@@ -15,6 +15,107 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 When in doubt, bump minor.
 
+## [Unreleased]
+
+### Added - permission completeness
+
+The agent's required-permission set is now defined once in the product repo
+(`argus_agent/core/verification_permissions.py`) and enforced across every
+deployment artifact by a contract test. Auditing this repo against it found real
+gaps in all three IaC paths. A control that reads "Not Verified" because we never
+requested the permission is our bug, not a customer misconfiguration.
+
+- **Terraform EC2 + Fargate modules**: added `s3:GetBucketLogging`,
+  `dynamodb:GetResourcePolicy`, `iam:ListGroupsForUser`,
+  `iam:Get/GenerateServiceLastAccessedDetails` and `sts:GetCallerIdentity`.
+  Fargate additionally gained `ec2:DescribeRegions` and a new
+  `ArgusAccountContext` statement. Both modules now satisfy the full registry
+  (51 read + 12 remediation actions).
+
+### Removed - this repo is the Terraform home, not a second policy home
+
+Every deletion here removes a hand-maintained copy of something defined elsewhere.
+Copies drift: the ones below already had.
+
+- **`cloudformation/argus-agent-ec2.yml` deleted.** It was a second copy of the
+  EC2 template the product serves, and had diverged - it read the enrollment token
+  from SSM Parameter Store where the served template uses Secrets Manager, and it
+  never received the opt-in SSH parameters. CloudFormation is served by the
+  control plane (`/downloads/argus-managed-ec2-v1.yml`); the README now points
+  there. This repo remains the home of the Terraform modules.
+- **`README.md` inline IAM policy removed**, replaced with a link to the published
+  docs. That block granted `s3:GetBucketEncryption` - not a real IAM action, so it
+  silently granted nothing - and was missing every `iam:`, `redshift:` and `kms:`
+  action, meaning anyone who copied it got an agent that could not discover
+  identities at all. The stale Quick-Launch URL alongside it was repointed.
+- **`docs/iam-permissions.md` action tables removed** (76 rows). The file is now
+  purely the *rationale* for each permission family - why it exists, what breaks
+  without it - which is the part that is genuinely useful and not derivable. The
+  action lists live in the registry and the generated docs.
+
+### Fixed
+
+- **EC2 module: region-specific prefix list.** The port-22 Instance Connect
+  ingress hardcoded `pl-03915406641cb1f53`. Managed prefix list IDs are
+  **region-specific**, so that literal only resolves in one region and fails (or
+  resolves to something unrelated) anywhere else. Now a
+  `data "aws_ec2_managed_prefix_list"` lookup by name against the current region.
+- **`s3:DeletePublicAccessBlock` is not a real IAM action.**
+  `delete_public_access_block` authorizes against `s3:PutBucketPublicAccessBlock`,
+  and `delete_bucket_encryption` against `s3:PutEncryptionConfiguration`. This repo
+  never granted the `Delete*` spellings (correctly); the product-side contract test
+  now rejects them, since granting one looks like coverage while granting nothing.
+- **`docs/iam-permissions.md` KMS section corrected.** It previously stated the
+  agent "does not call any KMS action directly", that SSE-KMS reads are
+  transparent, and that no IaC change was needed. That is wrong and is why
+  `kms:Decrypt` is granted nowhere: reading an SSE-KMS object requires the caller
+  to hold `kms:Decrypt` on the key. Tracked for fix product-side.
+
+### Changed - network defaults (BREAKING for existing Terraform users)
+
+The EC2 module opened two inbound ports unconditionally while the managed
+CloudFormation template opens none. A customer choosing DIY Terraform - typically
+for tighter control - was getting the weaker default. Both are now opt-in, so the
+two paths agree:
+
+- **Port 8080** (agent health endpoint, VPC CIDR) is now behind a new
+  `enable_health_endpoint` variable, default `false`. The agent polls outbound and
+  needs no inbound reachability to run.
+- **Port 22 via EC2 Instance Connect** is now behind the existing
+  `enable_ssh_access` variable, default `false`, matching the CIDR-based SSH rule
+  that was already gated. Session Manager remains the recommended path and needs
+  no open port.
+
+**Upgrade impact:** `terraform plan` will show both ingress rules being removed. If
+you scrape the health endpoint from inside the VPC, or rely on Instance Connect,
+set the corresponding variable to `true`.
+
+### Changed - naming convention (BREAKING for existing Terraform users)
+
+Everything Argus creates in a tenant account now carries the `argus` prefix; IAM
+roles/policies use PascalCase `Argus*`, all other resources lowercase `argus-*`.
+The Fargate module's IAM resources were lowercase (`argus-agent-<customer>-task-s3`)
+while the EC2 module already used PascalCase - they now match.
+
+- Fargate module IAM roles/policies renamed to `ArgusAgent<Thing>-${var.customer_name}`
+  (e.g. `ArgusAgentTaskRole-`, `ArgusAgentS3Policy-`). The security group is
+  deliberately unchanged (non-IAM resources stay lowercase).
+- CloudFormation inline policy names renamed from `argus-agent-*` to PascalCase.
+- **Upgrade impact:** renaming an IAM role or policy forces replace-and-recreate.
+  Run `terraform plan` and expect the agent's roles to be recreated; the agent
+  re-enrolls automatically, but the plan is not a no-op. Existing *deployed* stacks
+  that you do not re-apply are unaffected.
+
+### Fixed
+
+- `s3:DeletePublicAccessBlock` is **not a real IAM action** and was never granted
+  here (correctly). Documented explicitly: `delete_public_access_block` authorizes
+  against `s3:PutBucketPublicAccessBlock`, and `delete_bucket_encryption` against
+  `s3:PutEncryptionConfiguration`. The product-side contract test now rejects both
+  `Delete*` spellings, which look like coverage while granting nothing.
+- `docs/iam-permissions.md` relabelled: it is a historical gap analysis, not the
+  source of truth. Its "MISSING everywhere" tags described v0.7.6 and are now closed.
+
 ## [v0.8.5] - 2026-07-24
 
 Co-released with agent `0.8.5`. Makes Fargate burst autoscaling actually work and completes region/AZ handling on the EC2 module. Builds on the deploy-safety fixes in v0.7.7. Both module fixes below were surfaced by the first live end-to-end deploy to a non-default region and subnet (us-east-2).
