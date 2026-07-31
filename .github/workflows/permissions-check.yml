@@ -1,0 +1,39 @@
+name: permissions-check
+
+# The product repo (argus_agent/core/verification_permissions.py) is the single
+# source of truth for the agent's required IAM permissions and publishes a
+# machine-readable export. This repo vendors a copy (ci/verification-permissions.json)
+# and the Terraform modules must grant at least that required set (they may, and do,
+# grant a richer superset). This job fails when a module drops a required action, or
+# when the vendored copy has fallen behind the published registry - the guard that
+# turns a product-side permission change into a red build here rather than a silent
+# gap on the DIY Terraform path.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  # Weekly, so a product-side registry change surfaces even with no commits here.
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  permissions-check:
+    runs-on: ubuntu-latest
+    name: Terraform IAM covers the product's required permission set
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: IAM contract check (completeness + forbidden + staleness)
+        run: |
+          # Completeness + forbidden run offline against the vendored export.
+          # Staleness fetches the published registry and soft-skips if it is
+          # unreachable, so this never reds main on a network blip.
+          python3 ci/check_permissions.py

@@ -1,0 +1,152 @@
+{
+  "_comment": "GENERATED from argus_agent/core/verification_permissions.py. Do not hand-edit.",
+  "version": "0.9.0",
+  "signals": {
+    "s3.inventory": [
+      "s3:GetBucketLocation",
+      "s3:ListAllMyBuckets",
+      "s3:ListBucket"
+    ],
+    "s3.public": [
+      "s3:GetBucketAcl",
+      "s3:GetBucketPolicy",
+      "s3:GetBucketPolicyStatus",
+      "s3:GetBucketPublicAccessBlock"
+    ],
+    "s3.encryption": [
+      "s3:GetEncryptionConfiguration"
+    ],
+    "s3.versioning": [
+      "s3:GetBucketVersioning"
+    ],
+    "s3.logging": [
+      "s3:GetBucketLogging"
+    ],
+    "s3.tags": [
+      "s3:GetBucketTagging"
+    ],
+    "s3.content": [
+      "s3:GetObject",
+      "s3:GetObjectTagging",
+      "s3:GetObjectVersion"
+    ],
+    "rds.inventory": [
+      "rds:DescribeDBClusters",
+      "rds:DescribeDBInstances"
+    ],
+    "rds.public": [
+      "rds:DescribeDBClusters",
+      "rds:DescribeDBInstances"
+    ],
+    "rds.encryption": [
+      "rds:DescribeDBClusters",
+      "rds:DescribeDBInstances"
+    ],
+    "rds.backup": [
+      "rds:DescribeDBClusters",
+      "rds:DescribeDBInstances"
+    ],
+    "rds.tags": [
+      "rds:ListTagsForResource"
+    ],
+    "redshift.inventory": [
+      "redshift-serverless:ListWorkgroups",
+      "redshift:DescribeClusters"
+    ],
+    "redshift.public": [
+      "redshift-serverless:ListWorkgroups",
+      "redshift:DescribeClusters"
+    ],
+    "redshift.encryption": [
+      "redshift-serverless:ListWorkgroups",
+      "redshift:DescribeClusters"
+    ],
+    "redshift.content": [
+      "redshift:GetClusterCredentials"
+    ],
+    "dynamodb.inventory": [
+      "dynamodb:DescribeTable",
+      "dynamodb:ListTables"
+    ],
+    "dynamodb.public": [
+      "dynamodb:GetResourcePolicy"
+    ],
+    "dynamodb.encryption": [
+      "dynamodb:DescribeTable"
+    ],
+    "dynamodb.tags": [
+      "dynamodb:ListTagsOfResource"
+    ],
+    "dynamodb.content": [
+      "dynamodb:Scan"
+    ],
+    "identity.inventory": [
+      "iam:ListGroups",
+      "iam:ListRoles",
+      "iam:ListUsers"
+    ],
+    "identity.membership": [
+      "iam:ListGroupsForUser"
+    ],
+    "identity.credentials": [
+      "iam:GenerateCredentialReport",
+      "iam:GetAccessKeyLastUsed",
+      "iam:GetCredentialReport",
+      "iam:ListAccessKeys",
+      "iam:ListMFADevices"
+    ],
+    "identity.policies": [
+      "iam:GetGroupPolicy",
+      "iam:GetPolicy",
+      "iam:GetPolicyVersion",
+      "iam:GetRolePolicy",
+      "iam:GetUserPolicy",
+      "iam:ListAttachedGroupPolicies",
+      "iam:ListAttachedRolePolicies",
+      "iam:ListAttachedUserPolicies",
+      "iam:ListGroupPolicies",
+      "iam:ListRolePolicies",
+      "iam:ListUserPolicies"
+    ],
+    "identity.usage": [
+      "iam:GenerateServiceLastAccessedDetails",
+      "iam:GetServiceLastAccessedDetails"
+    ],
+    "identity.tags": [
+      "iam:ListUserTags"
+    ],
+    "account.identity": [
+      "sts:GetCallerIdentity"
+    ],
+    "account.regions": [
+      "ec2:DescribeRegions"
+    ],
+    "account.metrics": [
+      "cloudwatch:GetMetricStatistics"
+    ]
+  },
+  "remediation": {
+    "s3.public": [
+      "s3:DeleteBucketPolicy",
+      "s3:PutBucketPolicy",
+      "s3:PutBucketPublicAccessBlock"
+    ],
+    "s3.encryption": [
+      "s3:PutEncryptionConfiguration"
+    ],
+    "s3.versioning": [
+      "s3:PutBucketVersioning"
+    ],
+    "identity.policies": [
+      "iam:AttachRolePolicy",
+      "iam:AttachUserPolicy",
+      "iam:DeleteUserPolicy",
+      "iam:DetachRolePolicy",
+      "iam:DetachUserPolicy",
+      "iam:PutUserPolicy"
+    ],
+    "identity.credentials": [
+      "iam:UpdateAccessKey"
+    ]
+  }
+}
