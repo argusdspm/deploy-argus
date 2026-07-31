@@ -1,6 +1,6 @@
 # argus-agent-azure-aci (PREVIEW)
 
-> **PREVIEW STATUS** - This module works against `api.argusdspm.com` but is not yet wired into the Argus dashboard's Deploy Agent flow. Variable interface, defaults, and outputs may change in minor breaking ways before the `v1.x` stable line. Pin `?ref=v0.7.6` in your `source` to insulate yourself from changes.
+> **PREVIEW STATUS** - This module works against `api.argusdspm.com` but is not yet wired into the Argus dashboard's Deploy Agent flow. Variable interface, defaults, and outputs may change in minor breaking ways before the `v1.x` stable line. Pin `?ref=v0.9.0` in your `source` to insulate yourself from changes.
 
 Terraform module that deploys the Argus DSPM agent on Azure Container Instances. Resource and variable names mirror the AWS modules so operators can move between clouds without re-learning the contract.
 
@@ -8,7 +8,7 @@ Terraform module that deploys the Argus DSPM agent on Azure Container Instances.
 
 ```hcl
 module "argus_azure" {
-  source = "github.com/argusdspm/deploy-argus//modules/argus-agent-azure-aci?ref=v0.7.6"
+  source = "github.com/argusdspm/deploy-argus//modules/argus-agent-azure-aci?ref=v0.9.0"
 
   customer_name     = "acme"
   enrollment_token   = var.enrollment_token

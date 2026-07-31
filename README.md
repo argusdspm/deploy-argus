@@ -49,7 +49,7 @@ Then `main.tf`:
 
 ```hcl
 module "argus" {
-  source            = "github.com/argusdspm/deploy-argus//modules/argus-agent-fargate?ref=v0.7.7"
+  source            = "github.com/argusdspm/deploy-argus//modules/argus-agent-fargate?ref=v0.9.0"
   customer_name     = "production"
   enrollment_token  = var.enrollment_token
   argus_backend_url = "https://api.argusdspm.com"

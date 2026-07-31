@@ -15,7 +15,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 When in doubt, bump minor.
 
-## [Unreleased]
+## [v0.9.0] - 2026-07-30
 
 ### Added - permission completeness
 
@@ -31,6 +31,13 @@ requested the permission is our bug, not a customer misconfiguration.
   Fargate additionally gained `ec2:DescribeRegions` and a new
   `ArgusAccountContext` statement. Both modules now satisfy the full registry
   (51 read + 12 remediation actions).
+- **CI permission guard** (`ci/check_permissions.py`, `.github/workflows/permissions-check.yml`).
+  The product repo now publishes its permission registry as a machine-readable
+  export; this repo vendors a copy (`ci/verification-permissions.json`) and CI
+  fails if a module drops a required action, grants a non-existent one, or the
+  vendored copy has fallen behind the published registry. The modules stay a
+  deliberate superset (Redshift Data API, IAM DB auth, credential retrieval,
+  policy simulation); the check enforces the floor, never rewrites the modules.
 
 ### Removed - this repo is the Terraform home, not a second policy home
 
