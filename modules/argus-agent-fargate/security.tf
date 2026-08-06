@@ -174,6 +174,25 @@ resource "aws_iam_policy" "task_s3" {
         Effect   = "Allow"
         Action   = ["s3:GetObject", "s3:GetObjectVersion", "s3:GetObjectTagging"]
         Resource = "arn:aws:s3:::*/*"
+      },
+      {
+        # Sampling object CONTENT from a bucket encrypted with a customer-managed
+        # key requires kms:Decrypt on that key. Without it GetObject returns
+        # AccessDenied, the object is skipped, and the bucket reports "no
+        # sensitive data" on data we simply could not read - a false negative
+        # that looks exactly like a clean result.
+        #
+        # Scoped with kms:ViaService so the key can only ever be used THROUGH
+        # S3: the agent cannot decrypt anything with it directly.
+        Sid    = "S3KmsDecryptViaS3"
+        Effect = "Allow"
+        Action = ["kms:Decrypt"]
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "kms:ViaService" = "s3.${local.aws_region}.amazonaws.com"
+          }
+        }
       }
     ]
   })
@@ -439,8 +458,7 @@ resource "aws_iam_policy" "task_iam_discovery" {
           # Permission-usage history, which drives over-provisioning detection
           # (granted vs actually used).
           "iam:GetServiceLastAccessedDetails",
-          "iam:GenerateServiceLastAccessedDetails",
-          "iam:SimulatePrincipalPolicy"
+          "iam:GenerateServiceLastAccessedDetails"
         ]
         Resource = "*"
       }
@@ -566,4 +584,45 @@ resource "aws_iam_role_policy_attachment" "task_iam_remediation" {
   count      = local.remediation_enabled && local.iam_enabled ? 1 : 0
   role       = aws_iam_role.task.name
   policy_arn = aws_iam_policy.task_iam_remediation[0].arn
+}
+
+# Always attached, deliberately.
+#
+# `iam:SimulatePrincipalPolicy` is how the agent answers "may I remediate?" by
+# dry-running its OWN principal. It used to live in the IAM-discovery policy,
+# which is gated on `enable_iam_discovery` (default false) - so a customer who
+# turned remediation ON but left IAM discovery OFF got a capability check that
+# AccessDenied on itself, and remediation that read "not verified" forever.
+#
+# It must also NOT sit inside the remediation block: the default deployment is
+# read-only, and that is exactly the configuration that needs to be able to
+# report "read-only" rather than error. Both gates are wrong for it, so it gets
+# its own ungated policy. This is a read-only simulation API - it grants no
+# access to anything.
+#
+# `kms:DescribeKey` rides along for the same reason: key metadata drives
+# encryption posture on every datastore type, so gating it behind any one
+# service leaves the others reporting "not verified".
+resource "aws_iam_policy" "task_capability" {
+  name        = "ArgusAgentCapabilityPolicy-${var.customer_name}"
+  description = "Capability self-check and key metadata. Read-only, always attached."
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "ArgusCapabilitySelfCheck"
+        Effect   = "Allow"
+        Action   = ["iam:SimulatePrincipalPolicy", "kms:DescribeKey"]
+        Resource = "*"
+      }
+    ]
+  })
+
+  tags = local.common_tags
+}
+
+resource "aws_iam_role_policy_attachment" "task_capability" {
+  role       = aws_iam_role.task.name
+  policy_arn = aws_iam_policy.task_capability.arn
 }
