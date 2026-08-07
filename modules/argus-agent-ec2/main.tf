@@ -82,6 +82,10 @@ locals {
     aws_role_arn           = "" # same-account model - agent uses its instance profile
     aws_external_id        = "" # not used in same-account model
     agent_image            = var.agent_container_image
+    # Declared update channel: `stable` tracks the weekly refresh cron in
+    # user_data.sh; a pinned tag declares `pinned`. Informational - the
+    # control plane's version-lag detector stays authoritative.
+    update_channel = endswith(var.agent_container_image, ":stable") ? "stable" : "pinned"
   }))
 }
 

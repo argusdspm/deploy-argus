@@ -21,6 +21,14 @@ locals {
   # configured provider so the deploy works in any region (not just us-east-1).
   aws_region = var.aws_region != "" ? var.aws_region : data.aws_region.current.name
 
+  # Declared update channel, derived from the image tag. `stable` deploys get
+  # the weekly refresh scheduler (see scheduler.tf-style resources below) and
+  # declare it to the control plane; a pinned tag declares `pinned` and never
+  # auto-updates. Informational - the backend's version-lag detector stays
+  # authoritative for "actually behind".
+  stable_channel = var.agent_image_tag == "stable"
+  update_channel = local.stable_channel ? "stable" : "pinned"
+
   s3_enabled          = var.enable_all_datastores || var.enable_s3_scanning
   rds_enabled         = var.enable_all_datastores || var.enable_rds_scanning
   dynamodb_enabled    = var.enable_all_datastores || var.enable_dynamodb_scanning
@@ -49,6 +57,7 @@ locals {
     # autoscaling is on - a baseline-only deploy pays nothing.
     { name = "CLOUDWATCH_METRICS_ENABLED", value = var.enable_burst_autoscaling ? "true" : "false" },
     { name = "CLOUDWATCH_METRICS_CLUSTER", value = local.name_prefix },
+    { name = "ARGUS_UPDATE_CHANNEL", value = local.update_channel },
   ]
 }
 

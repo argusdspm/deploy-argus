@@ -15,6 +15,27 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 When in doubt, bump minor.
 
+## [Unreleased]
+
+### Added - stable-channel auto-update across cloud shapes
+
+`stable` now means "stays current" on every cloud shape, not just DIY EC2, and
+the agent tells the control plane which channel it was deployed on.
+
+- **Fargate module: weekly refresh scheduler** (`refresh.tf`). When
+  `agent_image_tag = "stable"`, the module provisions an EventBridge Scheduler
+  schedule (`argus-agent-<customer>-weekly-refresh`) plus an execution role
+  (`ArgusAgentScheduler-<customer>`, single permission: `ecs:UpdateService` on
+  the baseline service) that forces a new deployment once a week so the service
+  re-pulls `stable`. No Lambda, no agent IAM change, no agent code. Pinned tags
+  provision neither resource. Burst tasks already pull the current image on
+  each scale-out and need no schedule.
+- **Declared update channel** (`ARGUS_UPDATE_CHANNEL`). Both AWS modules now
+  derive `stable`/`pinned` from the image tag and pass it to the agent, which
+  reports it to the control plane so the dashboard can show "Auto-updating
+  (stable, weekly)" vs "Pinned - manual updates". Informational only: the
+  dashboard's version-lag detection stays authoritative.
+
 ## [v0.9.0] - 2026-07-30
 
 ### Added - permission completeness
@@ -140,6 +161,13 @@ Co-released with agent `0.8.5`. Makes Fargate burst autoscaling actually work an
 - **EC2 instance availability-zone conflict.** The instance pinned the first AZ in the region even when a `subnet_id` in a different AZ was supplied, so `RunInstances` rejected the mismatch. The supplied subnet's AZ now wins; the AZ is only pinned for the module-created subnet.
 
 > Note: the managed one-click template (`argus-managed-fargate-v1.yml`) lives in the Argus backend repo, not here; the matching autoscaling option was added there in the same change.
+
+## [v0.7.8] - 2026-06-16
+
+Documentation-only release (no module changes). Tagged so the docs snapshot is referenceable from a pinned `?ref`, per the versioning policy above.
+
+### Docs
+- **ECS task-definition JSON and IAM policy walkthroughs** added to the module README, so a from-scratch Terraform or console deploy has the exact task JSON and role policy to copy instead of reverse-engineering them from the module source.
 
 ## [v0.7.7] - 2026-06-15
 

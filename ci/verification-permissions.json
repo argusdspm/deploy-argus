@@ -1,6 +1,6 @@
 {
   "_comment": "GENERATED from argus_agent/core/verification_permissions.py. Do not hand-edit.",
-  "version": "0.9.0",
+  "version": "0.9.6",
   "signals": {
     "s3.inventory": [
       "s3:GetBucketLocation",
@@ -26,6 +26,7 @@
       "s3:GetBucketTagging"
     ],
     "s3.content": [
+      "kms:Decrypt",
       "s3:GetObject",
       "s3:GetObjectTagging",
       "s3:GetObjectVersion"
@@ -49,6 +50,7 @@
     "rds.tags": [
       "rds:ListTagsForResource"
     ],
+    "rds.content": [],
     "redshift.inventory": [
       "redshift-serverless:ListWorkgroups",
       "redshift:DescribeClusters"
@@ -78,7 +80,8 @@
       "dynamodb:ListTagsOfResource"
     ],
     "dynamodb.content": [
-      "dynamodb:Scan"
+      "dynamodb:Scan",
+      "kms:Decrypt"
     ],
     "identity.inventory": [
       "iam:ListGroups",
@@ -123,6 +126,12 @@
     ],
     "account.metrics": [
       "cloudwatch:GetMetricStatistics"
+    ],
+    "account.keys": [
+      "kms:DescribeKey"
+    ],
+    "account.capability": [
+      "iam:SimulatePrincipalPolicy"
     ]
   },
   "remediation": {
