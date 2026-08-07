@@ -8,7 +8,7 @@
 #
 # Variables substituted by Terraform:
 #   ${argus_backend_url}, ${aws_region}, ${enrollment_token_param},
-#   ${aws_role_arn}, ${aws_external_id}, ${agent_image}.
+#   ${aws_role_arn}, ${aws_external_id}, ${agent_image}, ${update_channel}.
 set -euo pipefail
 
 # Install Docker (Amazon Linux 2 / 2023). Fail loudly so the EC2
@@ -37,6 +37,7 @@ AWS_ROLE_ARN=${aws_role_arn}
 AWS_EXTERNAL_ID=${aws_external_id}
 ENROLLMENT_POOL=baseline
 AGENT_CONCURRENT_JOBS=4
+ARGUS_UPDATE_CHANNEL=${update_channel}
 ENROLLMENT_TOKEN=$ENROLLMENT_TOKEN
 EOF
 chmod 600 /etc/argus/agent.env
