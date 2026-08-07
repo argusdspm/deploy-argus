@@ -184,9 +184,9 @@ resource "aws_iam_policy" "task_s3" {
         #
         # Scoped with kms:ViaService so the key can only ever be used THROUGH
         # S3: the agent cannot decrypt anything with it directly.
-        Sid    = "S3KmsDecryptViaS3"
-        Effect = "Allow"
-        Action = ["kms:Decrypt"]
+        Sid      = "S3KmsDecryptViaS3"
+        Effect   = "Allow"
+        Action   = ["kms:Decrypt"]
         Resource = "*"
         Condition = {
           StringEquals = {
