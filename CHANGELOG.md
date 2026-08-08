@@ -4,18 +4,23 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## Versioning policy
 
-`deploy-argus` tracks the Argus agent it deploys. Tags are full semver (`vX.Y.Z`), matching `argus_agent/__version__.py` in the main repo. The current `v0.7.6` tag aligns with agent `0.7.5+` (v0.7.6 is a deploy-argus-only bump - agent code unchanged from v0.7.5; this release plugs the IAM permission gaps the agent always needed).
+`deploy-argus` is versioned **independently of the Argus agent**. They are separate deployables with separate cadences: the agent image (`argus_agent/__version__.py`; `agent-v*` tags in the main repo) re-releases on every agent code change, while `deploy-argus` re-releases only when the Terraform/CloudFormation modules change. The two version numbers are **not** required to match (for example the agent may be at `0.9.6` while this repo is at `v0.9.x`). Which agent image each release was verified against is recorded in [`COMPATIBILITY.md`](COMPATIBILITY.md).
 
-- **Pre-v1.0 (current):** versions move with the agent. The agent and `deploy-argus` co-tag on every customer-visible IaC change. No long-term backwards-compat guarantees while either side is pre-v1.
-- **v1.0.0:** ships when the Argus backend + agent + `deploy-argus` co-release v1.0 stable. The module interface (variables, outputs) locks at that point.
-- **Post-v1.0:**
-  - **Major (`X.0.0`):** breaking module interface changes - variable rename or removal, module deletion, customer must edit Terraform.
-  - **Minor (`x.Y.0`):** new modules, new optional variables, new providers, new optional outputs (backwards-compatible additions).
-  - **Patch (`x.y.Z`):** doc fixes, default-value tweaks, internal refactors that don't change the module interface.
+Tags are semver `vX.Y.Z`, classified by **module-interface impact**:
 
-When in doubt, bump minor.
+- **Major (`X.0.0`):** breaking interface change - a variable renamed or removed, a module deleted; the customer must edit their Terraform.
+- **Minor (`x.Y.0`):** backward-compatible additions - new modules, new optional variables/outputs, new providers, new opt-in behavior.
+- **Patch (`x.y.Z`):** doc fixes, default-value tweaks, internal refactors, or a permission re-vendor that does not change the actions the modules grant.
+
+**Pre-v1.0 (current):** minor breaking changes may still land; there is no long-term backwards-compatibility guarantee until the v1.0 co-release, when the module interface (variables, outputs) locks. When in doubt, bump minor.
+
+A release is cut whenever `main` carries customer-visible module changes worth pinning; see [`RELEASING.md`](RELEASING.md) for the steps.
 
 ## [Unreleased]
+
+## [v0.9.1] - 2026-08-08
+
+Co-released with agent `0.9.6` (no agent code change required). Ships the stable-channel auto-update to the DIY Terraform modules and re-vendors the permission registry to 0.9.6 (the modules already granted the required actions; the vendored copy was stale).
 
 ### Added - stable-channel auto-update across cloud shapes
 
